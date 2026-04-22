@@ -1,0 +1,37 @@
+# 备选：无法使用「与 mysql 同一网络」时，用宿主机端口转发访问 3306（仍不要用公网 IP）。
+# DATABASE_URL 主机填 host.docker.internal，密码需 URL 编码。
+#
+# 用法:
+#   cp env.docker.example .env   # 中把 DATABASE_URL 改为 ...@host.docker.internal:3306/...
+#   docker compose -f docker-compose.host-gateway.yml up -d --build
+#
+# 不需要设置 MYSQL_DOCKER_NETWORK。
+
+name: business-mgm
+
+services:
+  web:
+    image: business-mgm:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-docker.m.daocloud.io/library/python:3.12-slim-bookworm}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-5000}:5000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      FLASK_ENV: production
+      HOST: 0.0.0.0
+      PORT: "5000"
+      WAITRESS_THREADS: ${WAITRESS_THREADS:-8}
+      DATABASE_URL: ${DATABASE_URL:?请在 .env 中设置 DATABASE_URL}
+      UPLOAD_DIR: /app/data/uploads
+    volumes:
+      - ./data/uploads:/app/data/uploads
+      # - ./config.json:/app/config.json:ro

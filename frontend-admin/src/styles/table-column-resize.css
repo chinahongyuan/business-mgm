@@ -1,0 +1,12 @@
+/*
+ * 管理后台表格列宽拖拽：与 Element Plus 默认行为配合，略提升可发现性与暗色下的分隔对比 * ui-ux-pro-max：指针设备上表头拖拽区保持 col-resize 语义（具体热区由 EP 实现）
+ */
+
+.el-table.el-table--border .el-table__header-wrapper th.el-table__cell {
+  /* 右侧格线略清晰，便于对齐拖拽手柄 */
+  border-right: 1px solid var(--el-table-border-color);
+}
+
+html.dark .el-table.el-table--border .el-table__header-wrapper th.el-table__cell {
+  border-right-color: rgba(148, 163, 184, 0.22);
+}

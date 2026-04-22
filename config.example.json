@@ -1,0 +1,24 @@
+{
+  "database_url": "",
+  "database": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "password": "your_password",
+    "name": "business_mgm",
+    "charset": "utf8mb4"
+  },
+  "security": {
+    "secret_key": "please-change-secret-key",
+    "jwt_secret": "please-change-jwt-secret",
+    "jwt_expires_hours": 24
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": true
+  },
+  "baidu_map": {
+    "ak": "your_baidu_map_javascript_ak"
+  }
+}

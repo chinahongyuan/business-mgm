@@ -1,0 +1,72 @@
+/*
+ * 响应式与触控：设计令牌（theme-factory：统一色阶与密度）
+ * ui-ux-pro-max：安全区、触控、避免横向溢出
+ */
+
+:root {
+  /* 断点仅作文档/JS 常量镜像，媒体查询仍用 px */
+  --bm-breakpoint-narrow: 768px;
+  --bm-space-page: 20px;
+  --bm-space-page-narrow: 12px;
+  --bm-touch-target-min: 44px;
+  --bm-header-safe-top: env(safe-area-inset-top, 0px);
+  --bm-header-safe-left: env(safe-area-inset-left, 0px);
+  --bm-header-safe-right: env(safe-area-inset-right, 0px);
+  --bm-bottom-safe: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  /* iOS 输入框聚焦时不强行缩放整页（≥16px 配合各页 input） */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  /* 刘海屏：整页内容不贴边 */
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* 业务页 .page 在窄屏下略减内边距，保持可读又不浪费宽度 */
+@media (max-width: 768px) {
+  .page {
+    padding: var(--bm-space-page-narrow) !important;
+  }
+
+  /* 表格横向滚动：避免撑破视口 */
+  .el-table {
+    min-width: 0;
+  }
+
+  .el-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+/* 登录页：刘海 / 底部安全区 */
+@media (max-width: 1023px) {
+  .login-main {
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+    padding-top: max(18px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 触控：主要按钮略放大可点区域（不覆盖组件内联样式） */
+@media (pointer: coarse) {
+  .bm-nav-toggle {
+    min-width: var(--bm-touch-target-min);
+    min-height: var(--bm-touch-target-min);
+  }
+}
+
+/* 移动端抽屉导航：teleport 到 body，需全局样式（非 scoped） */
+.bm-drawer.el-drawer .el-drawer__body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}

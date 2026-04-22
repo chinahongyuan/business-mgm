@@ -1,0 +1,44 @@
+:root {
+  color-scheme: light;
+  --bm-radius: 12px;
+  --bm-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --bm-border: 1px solid rgba(15, 23, 42, 0.08);
+  /* 与 responsive.css / 断点 JS 对齐（theme-factory：统一密度令牌） */
+  --bm-space-page: 20px;
+  --bm-space-page-narrow: 12px;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
+  background: #f6f7fb;
+  color: #0f172a;
+}
+
+#app {
+  height: 100%;
+}
+
+/* wangEditor 全屏：需高于 Element Plus 侧栏/顶栏/下拉（z-index 常 2000+），否则全屏时仍被遮挡、与其它控件叠乱 */
+.w-e-full-screen-container {
+  z-index: 5000 !important;
+}
+
+/* 富文本内弹层（链接、图片等）在部分布局下需高于表单控件 */
+body .w-e-modal {
+  z-index: 5100 !important;
+}

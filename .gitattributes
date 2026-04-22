@@ -1,0 +1,2 @@
+# Shell 脚本在 Linux 上必须为 LF，否则会出现 $'\r': 未找到命令、set 无效选项等
+*.sh text eol=lf

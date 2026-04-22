@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5"
+    />
+    <title>System Management</title>
+    <!-- 在 Vue 挂载前应用主题，避免默认暗色时出现整页白闪；bm-theme 与 src/store/theme.ts 同步 -->
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem("bm-theme");
+          var root = document.documentElement;
+          if (v === "light") {
+            root.classList.remove("dark");
+            root.style.colorScheme = "light";
+          } else {
+            root.classList.add("dark");
+            root.style.colorScheme = "dark";
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

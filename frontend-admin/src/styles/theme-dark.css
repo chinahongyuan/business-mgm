@@ -1,0 +1,293 @@
+/* 与 Element Plus dark/css-vars 配套：布局壳层与业务 token，避免仅组件变暗而壳层仍亮 */
+
+html.dark {
+  color-scheme: dark;
+  --bm-radius: 12px;
+  --bm-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --bm-border: 1px solid rgba(148, 163, 184, 0.14);
+  --bm-text: #e2e8f0;
+  --bm-text-muted: rgba(226, 232, 240, 0.62);
+  /* 与壳层 slate 对齐：覆盖 EP dark 默认灰边，避免在 #0b1220 上显「发白」 */
+  --el-border-color-darker: rgba(148, 163, 184, 0.28);
+  --el-border-color-dark: rgba(148, 163, 184, 0.22);
+  --el-border-color: rgba(148, 163, 184, 0.2);
+  --el-border-color-light: rgba(148, 163, 184, 0.16);
+  --el-border-color-lighter: rgba(148, 163, 184, 0.14);
+  --el-border-color-extra-light: rgba(148, 163, 184, 0.1);
+}
+
+/* 表格：显式绑定格线色（border 属性依赖 --el-table-border） */
+html.dark .el-table {
+  --el-table-border-color: rgba(148, 163, 184, 0.14);
+  --el-table-border: 1px solid var(--el-table-border-color);
+}
+
+html.dark .el-card {
+  --el-card-border-color: rgba(148, 163, 184, 0.14);
+}
+
+/* 列表页工具栏标题（scoped 里写死深色字时需压过 [data-v] 选择器） */
+html.dark .page .toolbar-title {
+  color: var(--bm-text);
+}
+
+html.dark body {
+  background: #0b1220;
+  color: var(--bm-text);
+}
+
+/* 管理后台主框架 */
+html.dark .bm-shell {
+  background:
+    radial-gradient(1000px 600px at 18% 0%, rgba(37, 99, 235, 0.14), transparent 58%),
+    radial-gradient(800px 500px at 92% 8%, rgba(124, 58, 237, 0.1), transparent 55%),
+    #0b1220;
+}
+
+html.dark .bm-aside {
+  border-right-color: rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(14px);
+}
+
+html.dark .bm-brand {
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+}
+
+html.dark .bm-brand-title {
+  color: #f1f5f9;
+}
+
+html.dark .bm-brand-sub {
+  color: rgba(226, 232, 240, 0.5);
+}
+
+html.dark .bm-header {
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(14px);
+}
+
+/* 窄屏抽屉：与侧栏同色（teleport 出 AdminLayout，用全局选择器） */
+html.dark .bm-drawer.el-drawer {
+  --el-drawer-bg-color: rgba(15, 23, 42, 0.98);
+}
+
+html.dark .bm-page-title {
+  color: rgba(241, 245, 249, 0.95);
+}
+
+html.dark .bm-user {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+html.dark .bm-theme-btn {
+  color: rgba(226, 232, 240, 0.75) !important;
+}
+
+html.dark .bm-theme-btn:hover {
+  color: #f1f5f9 !important;
+  background: rgba(148, 163, 184, 0.12) !important;
+}
+
+/* 侧栏滚动条 */
+html.dark .bm-aside-nav {
+  scrollbar-color: rgba(96, 165, 250, 0.35) rgba(15, 23, 42, 0.35);
+}
+
+html.dark .bm-aside-nav::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+/* 登录页（持久化为暗色时进入登录页） */
+html.dark .login-root {
+  color: #e2e8f0;
+}
+
+html.dark .login-bg__mesh {
+  background:
+    radial-gradient(900px 520px at 18% 12%, rgba(37, 99, 235, 0.22), transparent 60%),
+    radial-gradient(760px 520px at 88% 18%, rgba(124, 58, 237, 0.18), transparent 58%),
+    radial-gradient(700px 520px at 52% 92%, rgba(14, 165, 233, 0.12), transparent 58%),
+    linear-gradient(180deg, #0f172a 0%, #0b1220 55%, #020617 100%);
+}
+
+html.dark .login-card {
+  border-color: rgba(148, 163, 184, 0.15);
+  background: rgba(15, 23, 42, 0.78);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+html.dark .login-card__title {
+  color: #f1f5f9;
+}
+
+html.dark .login-card__sub {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+html.dark .login-foot {
+  color: rgba(148, 163, 184, 0.55);
+}
+
+/* 工作台 / 首页：指标卡与图表区与壳层联动 */
+html.dark .dash-hero {
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+}
+
+html.dark .dash-hero__title {
+  color: var(--bm-text);
+}
+
+html.dark .dash-hero__date {
+  color: rgba(226, 232, 240, 0.72);
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+html.dark .metric-tile {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+html.dark .metric-tile:hover {
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(37, 99, 235, 0.22);
+}
+
+html.dark .metric-tile__label {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+html.dark .metric-tile__hint {
+  color: rgba(148, 163, 184, 0.55);
+}
+
+html.dark .metric-tile__num {
+  color: #f1f5f9;
+}
+
+html.dark .metric-tile__suffix {
+  color: rgba(148, 163, 184, 0.65);
+}
+
+html.dark .metric-tile__icon {
+  color: #93c5fd;
+  background: linear-gradient(145deg, rgba(37, 99, 235, 0.28) 0%, rgba(124, 58, 237, 0.18) 100%);
+}
+
+html.dark .chart-panel {
+  border: var(--bm-border);
+  background: rgba(15, 23, 42, 0.55);
+}
+
+html.dark .chart-panel__head {
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.88) 100%);
+}
+
+html.dark .chart-panel__title {
+  color: #f1f5f9;
+}
+
+html.dark .chart-panel__sub {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+html.dark .chart-panel__canvas {
+  background: rgba(11, 18, 32, 0.55);
+  border-top-color: rgba(148, 163, 184, 0.08);
+}
+
+/* 富文本编辑器（与 slate 卡片一致） */
+html.dark .bm-rich-inner {
+  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+html.dark .bm-rich-toolbar {
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+}
+
+/* CMS 只读统计块 */
+html.dark .read-stat {
+  border-color: rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.4);
+}
+
+html.dark .read-stat__label {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+html.dark .read-stat__value {
+  color: #e2e8f0;
+}
+
+html.dark .cms-form .form-section-title {
+  color: rgba(226, 232, 240, 0.72);
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+}
+
+html.dark .cms-form .muted {
+  color: rgba(226, 232, 240, 0.5);
+}
+
+/* 登录口令列表：状态单选组在深色表格内对比度 */
+html.dark .pwd-status-rg :deep(.el-radio-button__inner) {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: rgba(226, 232, 240, 0.85);
+}
+
+html.dark .pwd-status-rg :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: rgba(37, 99, 235, 0.35);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #f1f5f9;
+  box-shadow: none;
+}
+
+/* 商品编辑：区块标题与辅助文案（scoped 内写死浅色字时） */
+html.dark .product-form .form-section-title {
+  color: rgba(226, 232, 240, 0.72);
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+}
+
+html.dark .product-form .muted,
+html.dark .product-form .field-hint,
+html.dark .product-form .cover-hint,
+html.dark .product-form .map-meta-wait {
+  color: rgba(226, 232, 240, 0.5);
+}
+
+html.dark .product-form .sep {
+  color: rgba(226, 232, 240, 0.45);
+}
+
+/* 商品标签：容器 + bordered checkbox（深色下对比度 ≥ 可读；避免浅灰底 + 浅字） */
+html.dark .product-form .tag-field {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+html.dark .product-form .tag-group .el-checkbox.is-bordered {
+  background-color: rgba(15, 23, 42, 0.4);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+html.dark .product-form .tag-group .el-checkbox.is-bordered .el-checkbox__label {
+  color: rgba(226, 232, 240, 0.94);
+}
+
+html.dark .product-form .tag-group .el-checkbox.is-bordered.is-checked {
+  background-color: rgba(37, 99, 235, 0.38);
+  border-color: rgba(96, 165, 250, 0.55);
+}
+
+html.dark .product-form .tag-group .el-checkbox.is-bordered.is-checked .el-checkbox__label {
+  color: #f1f5f9;
+}

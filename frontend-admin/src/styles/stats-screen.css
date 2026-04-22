@@ -1,0 +1,195 @@
+/* 统计大屏：与后台壳层解耦的沉浸式数据视图 */
+
+.stats-screen {
+  min-height: calc(100vh - 88px);
+  padding: 12px 16px 28px;
+  max-width: 1680px;
+  margin: 0 auto;
+  background:
+    radial-gradient(1000px 520px at 12% 0%, rgba(59, 130, 246, 0.14), transparent 55%),
+    radial-gradient(800px 480px at 92% 8%, rgba(124, 58, 237, 0.1), transparent 52%),
+    linear-gradient(180deg, #0b1220 0%, #0f172a 45%, #0b1220 100%);
+}
+
+.stats-screen--light {
+  background:
+    radial-gradient(900px 500px at 10% 0%, rgba(37, 99, 235, 0.06), transparent 55%),
+    radial-gradient(700px 420px at 95% 10%, rgba(124, 58, 237, 0.05), transparent 50%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.stats-screen__hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.stats-screen--light .stats-screen__hero {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+.stats-screen__title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  color: #f1f5f9;
+}
+
+.stats-screen--light .stats-screen__title {
+  color: #0f172a;
+}
+
+.stats-screen__sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.55);
+  max-width: 52em;
+}
+
+.stats-screen--light .stats-screen__sub {
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.stats-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.stats-kpi__card {
+  position: relative;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+.stats-screen--light .stats-kpi__card {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+}
+
+.stats-kpi__card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.9), rgba(167, 139, 250, 0.75), rgba(52, 211, 153, 0.65));
+  opacity: 0.85;
+}
+
+.stats-kpi__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(226, 232, 240, 0.58);
+  margin-bottom: 8px;
+}
+
+.stats-screen--light .stats-kpi__label {
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.stats-kpi__value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #f8fafc;
+  line-height: 1.1;
+}
+
+.stats-screen--light .stats-kpi__value {
+  color: #0f172a;
+}
+
+.stats-kpi__suffix {
+  margin-left: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px;
+}
+
+.stats-panel {
+  grid-column: span 12;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(10px);
+  padding: 14px 16px 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.stats-screen--light .stats-panel {
+  border-color: rgba(15, 23, 42, 0.07);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+@media (min-width: 1100px) {
+  .stats-panel--half {
+    grid-column: span 6;
+  }
+
+  .stats-panel--third {
+    grid-column: span 4;
+  }
+}
+
+.stats-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.stats-panel__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: rgba(241, 245, 249, 0.95);
+}
+
+.stats-screen--light .stats-panel__title {
+  color: #0f172a;
+}
+
+.stats-panel__hint {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.stats-chart {
+  width: 100%;
+  height: min(320px, 42vh);
+  min-height: 260px;
+}
+
+.stats-chart--tall {
+  height: min(380px, 48vh);
+  min-height: 300px;
+}
+
+.stats-chart--short {
+  height: min(280px, 36vh);
+  min-height: 220px;
+}

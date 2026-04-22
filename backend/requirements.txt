@@ -1,0 +1,21 @@
+# Web
+Flask>=3.0,<4
+flask-cors>=4.0,<5
+
+# DB (phase 1+)
+Flask-SQLAlchemy>=3.1,<4
+PyMySQL>=1.1,<2
+cryptography>=42,<45
+
+# Auth
+PyJWT>=2.8,<3
+bcrypt>=4.1,<5
+
+# Config
+python-dotenv>=1.0,<2
+
+# IP 归属地（离线 xdb）
+py-ip2region>=3.0,<4
+
+# Production WSGI (optional)
+waitress>=3.0,<4

@@ -1,0 +1,67 @@
+# 仅启动 Web 容器；MySQL 为 1Panel 等已创建的独立容器。
+#
+# 推荐：让 Web 与 mysql 处于同一 Docker 网络，连接串使用主机名 mysql（不走外网 IP、不经过宿主机 NAT）。
+#   1) 查 mysql 所在网络名:
+#        docker inspect mysql --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+#   2) 将网络名写入 .env 的 MYSQL_DOCKER_NETWORK
+#   3) DATABASE_URL 中主机写 mysql:3306（不是 154.x 公网 IP）
+#
+# 用法:
+#   cp env.docker.example .env && nano .env
+#   mkdir -p data/uploads && docker compose up -d --build
+#
+# 宿主机挂载开发（改代码不重建镜像，见下方 volumes）:
+#   - 改 backend: docker compose restart web
+#   - 改前端: 在宿主机执行 ./rebuild-frontends.sh（或分别在 frontend-* 下 npm run build），再 restart
+#
+# 若 mysql 只在默认 bridge 且无法解析容器名，见 env.docker.example 中的「备选」方案。
+
+name: business-mgm
+
+services:
+  web:
+    image: business-mgm:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # 无法访问 Docker Hub 时，在 .env 中设置（与 USE_CN_MIRROR=1 脚本一致）:
+      # NODE_IMAGE=docker.m.daocloud.io/library/node:20-alpine
+      # PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.12-slim-bookworm
+      # PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+      # NPM_REGISTRY=https://registry.npmmirror.com
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-docker.m.daocloud.io/library/python:3.12-slim-bookworm}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-5000}:5000"
+    environment:
+      FLASK_ENV: production
+      HOST: 0.0.0.0
+      PORT: "5000"
+      WAITRESS_THREADS: ${WAITRESS_THREADS:-8}
+      DATABASE_URL: ${DATABASE_URL:?请在 .env 中设置 DATABASE_URL}
+      UPLOAD_DIR: /app/data/uploads
+    volumes:
+      # 运行时代码与静态资源均以宿主机为准（不重建镜像；改 backend 内 Python 后 restart 即生效）
+      - ./backend:/app
+      # 前端源码仅挂载备查；Waitress 实际提供的是 backend/app/static/*（由 Vite 构建写入）
+      # 最终镜像无 Node，须在宿主机执行 ./rebuild-frontends.sh 或 npm run build 后再 restart
+      - ./frontend-admin:/workspace/frontend-admin
+      - ./frontend-mobile:/workspace/frontend-mobile
+      - ./data/uploads:/app/data/uploads
+      # 项目根目录 config.json：数据库、百度地图 AK 等（json_config 会读 /config.json 或 /app/config.json）
+      # 若目录下暂无该文件：先 cp config.example.json config.json 再改；或临时注释本行并仅用 .env 的 DATABASE_URL
+      - ./config.json:/config.json:ro
+    networks:
+      - business_mgm_net
+      - mysql_net
+
+networks:
+  business_mgm_net:
+    driver: bridge
+  mysql_net:
+    external: true
+    name: ${MYSQL_DOCKER_NETWORK:?请在 .env 中设置 MYSQL_DOCKER_NETWORK，见 env.docker.example}
