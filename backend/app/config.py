@@ -42,6 +42,11 @@ def _sqlalchemy_engine_options() -> dict:
     }
 
 
+# 管理后台 /auth 发放 JWT 的 exp（小时取整）。仅 @require_auth 的接口；移动端 H5 口令会话由
+# app.api.mobile_public.MOBILE_PASSWORD_SESSION_TTL 控制，与此无关。
+_DEFAULT_ADMIN_JWT_EXPIRES_HOURS = 10 * 365 * 24  # 约 10 年；需短会话可设环境变量或调小 config.json
+
+
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-change-me")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -52,7 +57,7 @@ class BaseConfig:
     SQLALCHEMY_ENGINE_OPTIONS = _sqlalchemy_engine_options()
     SQLALCHEMY_RECORD_QUERIES = False
     JWT_SECRET = os.getenv("JWT_SECRET", "jwt-dev-change-me")
-    JWT_EXPIRES_HOURS = int(os.getenv("JWT_EXPIRES_HOURS", "24"))
+    JWT_EXPIRES_HOURS = int(os.getenv("JWT_EXPIRES_HOURS", str(_DEFAULT_ADMIN_JWT_EXPIRES_HOURS)))
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", "5000"))
 

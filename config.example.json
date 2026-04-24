@@ -11,7 +11,7 @@
   "security": {
     "secret_key": "please-change-secret-key",
     "jwt_secret": "please-change-jwt-secret",
-    "jwt_expires_hours": 24
+    "jwt_expires_hours": 87600
   },
   "server": {
     "host": "0.0.0.0",

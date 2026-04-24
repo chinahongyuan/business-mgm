@@ -1,17 +1,26 @@
 <template>
   <div class="app-root">
     <div class="app-shell">
-      <!-- 仅缓存商品列表：保留已加载的无限滚动分页与布局高度，与 sessionStorage 中的 scrollY 才会一致 -->
+      <!--
+        仅缓存商品列表；与 sessionStorage 中的 scrollY 配合。
+        key=visitorKey：同一会话内列表↔详情仍复用缓存；重登后 visitorKey 变，强制新 mount 走 onMounted 拉全量数据，避免 401 后只触发 onActivated 时列表为空。
+      -->
       <router-view v-slot="{ Component }">
         <keep-alive include="ProductListView">
-          <component :is="Component" v-if="Component" />
+          <component :is="Component" v-if="Component" :key="visitorKey || 'anon'" />
         </keep-alive>
       </router-view>
     </div>
   </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { storeToRefs } from "pinia";
+
+import { useSessionStore } from "@/stores/session";
+
+const { visitorKey } = storeToRefs(useSessionStore());
+</script>
 
 <style scoped>
 .app-root {
