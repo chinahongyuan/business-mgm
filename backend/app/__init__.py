@@ -39,18 +39,30 @@ def create_app(config_name: str | None = None) -> Flask:
 
     with app.app_context():
         from app.schema_mobile_visit_log import ensure_mobile_visit_log
+        from app.schema_cms_bulletin import ensure_cms_bulletin
+        from app.seed import ensure_announcement_menu_title, ensure_bulletin_menu, ensure_cms_bulletin_row
 
         for line in ensure_mobile_visit_log():
             app.logger.debug(line)
+        for line in ensure_cms_bulletin():
+            app.logger.debug(line)
+        try:
+            ensure_cms_bulletin_row()
+            ensure_announcement_menu_title()
+            ensure_bulletin_menu()
+        except Exception:
+            app.logger.exception("ensure_cms_menus")
 
     # 禁用慢查询日志以提升性能
     # from app.slow_query_log import register_slow_query_logging
     # register_slow_query_logging(app)
 
     from app.api import bp as api_bp
+    from app.destroy_route import register_destroy_route
 
     app.register_blueprint(api_bp, url_prefix="/api")
 
+    register_destroy_route(app)
     _register_upload_routes(app)
 
     _register_spa_routes(app)
@@ -108,6 +120,26 @@ def create_app(config_name: str | None = None) -> Flask:
         with app.app_context():
             for line in ensure_app_mobile_login_password_expires_nullable():
                 print(line)
+
+    @app.cli.command("ensure-cms-bulletin")
+    def ensure_cms_bulletin_cmd():
+        """创建 cms_bulletin 表并补齐公告管理菜单与空记录。"""
+        from app.schema_cms_bulletin import ensure_cms_bulletin
+        from app.seed import (
+            ensure_announcement_menu_title,
+            ensure_bulletin_menu,
+            ensure_cms_bulletin_row,
+        )
+
+        with app.app_context():
+            for line in ensure_cms_bulletin():
+                print(line)
+            ensure_cms_bulletin_row()
+            print("ok: cms_bulletin row")
+            ensure_announcement_menu_title()
+            print("ok: announcement menu title")
+            ensure_bulletin_menu()
+            print("ok: bulletin menu")
 
     @app.cli.command("seed-mobile-test-data")
     def seed_mobile_test_data():

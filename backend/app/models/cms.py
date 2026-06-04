@@ -8,7 +8,7 @@ from app.extensions import db
 
 
 class CmsAnnouncement(db.Model):
-    """全站仅一条公告；移动端展示已发布内容并统计浏览。"""
+    """全站仅一条娱乐指南；移动端浮标/弹窗展示已发布内容并统计浏览。"""
 
     __tablename__ = "cms_announcement"
 
@@ -21,6 +21,24 @@ class CmsAnnouncement(db.Model):
         db.BigInteger, db.ForeignKey("app_mobile_user.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # 与已有库表对齐：部分环境该列非空且无默认值，由 ORM 写入
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    last_view_mobile_user = db.relationship("MobileUser", foreign_keys=[last_view_mobile_user_id])
+
+
+class CmsBulletin(db.Model):
+    """全站仅一条公告（管理后台「公告管理」）；与娱乐指南数据独立，暂不接入移动端。"""
+
+    __tablename__ = "cms_bulletin"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    content_html = db.Column(db.Text, nullable=False, default="")
+    status = db.Column(db.SmallInteger, nullable=False, default=0)  # 0 未发布 1 已发布
+    view_count = db.Column(db.Integer, nullable=False, default=0)
+    last_view_at = db.Column(db.DateTime, nullable=True)
+    last_view_mobile_user_id = db.Column(
+        db.BigInteger, db.ForeignKey("app_mobile_user.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     last_view_mobile_user = db.relationship("MobileUser", foreign_keys=[last_view_mobile_user_id])

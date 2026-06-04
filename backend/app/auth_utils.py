@@ -56,10 +56,9 @@ def get_bearer_token() -> str | None:
 
 
 def get_client_ip() -> str | None:
-    xff = request.headers.get("X-Forwarded-For")
-    if xff:
-        return xff.split(",")[0].strip()[:64]
-    return (request.remote_addr or "")[:64] or None
+    from app.client_ip import get_client_ip as _get_client_ip
+
+    return _get_client_ip()
 
 
 def require_auth(func):

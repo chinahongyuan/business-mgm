@@ -16,10 +16,59 @@
 
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { onBeforeUnmount, watch } from "vue";
 
+import { http } from "@/api/http";
 import { useSessionStore } from "@/stores/session";
 
-const { visitorKey } = storeToRefs(useSessionStore());
+const HEARTBEAT_MS = 60_000;  // 60秒 = 1分钟
+const session = useSessionStore();
+const { visitorKey } = storeToRefs(session);
+
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+function clearHeartbeat() {
+  if (heartbeatTimer != null) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
+function appOpenKey(vk: string) {
+  return `bmgm_app_open_${vk}`;
+}
+
+function startSessionSync(vk: string) {
+  clearHeartbeat();
+  if (typeof sessionStorage !== "undefined") {
+    const k = appOpenKey(vk);
+    if (!sessionStorage.getItem(k)) {
+      void http.post("/mobile/app-open", { visitorKey: vk }).then(
+        () => sessionStorage.setItem(k, "1"),
+        () => {},
+      );
+    }
+  }
+  const tick = () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    void http.post("/mobile/heartbeat", { visitorKey: vk }).catch(() => {});
+  };
+  heartbeatTimer = setInterval(tick, HEARTBEAT_MS);
+  void tick();
+}
+
+watch(
+  visitorKey,
+  (vk) => {
+    clearHeartbeat();
+    if (vk && vk.length >= 8) {
+      startSessionSync(vk);
+    }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => clearHeartbeat());
 </script>
 
 <style scoped>

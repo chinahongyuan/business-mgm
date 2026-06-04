@@ -50,7 +50,7 @@ class MobileVisitLog(db.Model):
     mobile_user_id = db.Column(
         db.BigInteger, db.ForeignKey("app_mobile_user.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    event_type = db.Column(db.String(32), nullable=False)  # login | geo | product_view
+    event_type = db.Column(db.String(32), nullable=False)  # login | app_open | geo | product_view | heartbeat | custom
     ip = db.Column(db.String(64), nullable=True)
     latitude = db.Column(db.Numeric(10, 6), nullable=True)
     longitude = db.Column(db.Numeric(10, 6), nullable=True)

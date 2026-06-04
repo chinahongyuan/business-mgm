@@ -40,10 +40,10 @@
           @keyup.enter="doSearch"
         />
         <el-input
-          v-model="ipRegion"
+          v-model="mobileUserIp"
           clearable
           class="filter-input filter-input--narrow"
-          placeholder="IP 归属地"
+          placeholder="移动端用户 IP"
           @clear="doSearch"
           @keyup.enter="doSearch"
         />
@@ -82,10 +82,10 @@
           show-overflow-tooltip
         />
         <el-table-column
-          column-key="ipRegion"
-          prop="ipRegion"
-          label="IP 归属地"
-          v-bind="tw.col('ipRegion', { minWidth: 160 })"
+          column-key="mobileUserIp"
+          prop="mobileUserIp"
+          label="移动端用户 IP"
+          v-bind="tw.col('mobileUserIp', { minWidth: 160 })"
           class-name="col-text-wrap"
         />
         <el-table-column
@@ -144,7 +144,7 @@
               <span>{{ p.name }}</span>
             </el-option>
           </el-select>
-          <div class="form-hint">管理员新增的留言将显示 IP 为「管理后台」，并默认已通过。</div>
+          <div class="form-hint">管理员新增的留言在列表「移动端用户 IP」列显示为「管理后台」，并默认已通过。</div>
         </el-form-item>
         <el-form-item label="留言内容">
           <el-input v-model="form.content" type="textarea" :rows="6" maxlength="2000" show-word-limit />
@@ -183,7 +183,7 @@ const pageSize = ref(20);
 const auditFilter = ref<"pending" | "approved" | undefined>(undefined);
 const dateRange = ref<[number, number] | null>(null);
 const productName = ref("");
-const ipRegion = ref("");
+const mobileUserIp = ref("");
 const selectedIds = ref<number[]>([]);
 
 const form = reactive({
@@ -241,7 +241,7 @@ async function load() {
         startTime,
         endTime,
         productName: productName.value.trim() || undefined,
-        ipRegion: ipRegion.value.trim() || undefined,
+        mobileUserIp: mobileUserIp.value.trim() || undefined,
       },
     });
     items.value = data?.data?.items || [];

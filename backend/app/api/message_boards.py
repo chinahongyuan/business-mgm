@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import datetime
 
 from flask import g, jsonify, request
+from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
+
 from app.api import bp
 from app.auth_utils import require_auth
 from app.datetime_utils import isoformat_utc
 from app.extensions import db
-from app.models import Product, ProductMessage
-from app.services.ip2region_service import display_ip_region_only
+from app.models import MobileUser, Product, ProductMessage
 from app.services.log_service import write_operation_log
 from app.services.product_order import product_list_order
 
@@ -28,13 +29,15 @@ def _parse_dt(val: str | None) -> datetime | None:
         return None
 
 
-def _message_ip_region_display(m: ProductMessage) -> str:
+def _message_list_ip_display(m: ProductMessage) -> str:
+    """列表：移动端用户显示 app_mobile_user.ip；管理员留言显示留言表 ip_region（如「管理后台」）。"""
     if m.created_by_admin:
-        return m.ip_region or ADMIN_REGION_LABEL
+        return (m.ip_region or "").strip() or ADMIN_REGION_LABEL
     mu = m.mobile_user
-    if mu is not None:
-        return display_ip_region_only(mu.ip, mu.ip_region, mu.user_region)
-    return m.ip_region or "未知"
+    if mu is None:
+        return "—"
+    ip = (mu.ip or "").strip()
+    return ip if ip else "—"
 
 
 def _serialize_row(m: ProductMessage, include_content_full: bool = False) -> dict:
@@ -42,7 +45,7 @@ def _serialize_row(m: ProductMessage, include_content_full: bool = False) -> dic
     body = {
         "id": m.id,
         "mobileUserId": m.mobile_user_id,
-        "ipRegion": _message_ip_region_display(m),
+        "mobileUserIp": _message_list_ip_display(m),
         "productId": m.product_id,
         "productName": p.name if p else "",
         "coverImage": p.cover_image if p else None,
@@ -66,7 +69,7 @@ def list_message_boards():
     start = _parse_dt(request.args.get("startTime"))
     end = _parse_dt(request.args.get("endTime"))
     product_name = (request.args.get("productName") or "").strip()
-    ip_region = (request.args.get("ipRegion") or "").strip()
+    ip_kw = (request.args.get("mobileUserIp") or request.args.get("ipRegion") or "").strip()
 
     q = (
         ProductMessage.query.options(joinedload(ProductMessage.mobile_user))
@@ -80,8 +83,13 @@ def list_message_boards():
         q = q.filter(ProductMessage.created_at <= end)
     if product_name:
         q = q.filter(Product.name.contains(product_name))
-    if ip_region:
-        q = q.filter(ProductMessage.ip_region.contains(ip_region))
+    if ip_kw:
+        q = q.outerjoin(MobileUser, ProductMessage.mobile_user_id == MobileUser.id).filter(
+            or_(
+                MobileUser.ip.contains(ip_kw),
+                ProductMessage.ip_region.contains(ip_kw),
+            )
+        )
 
     q = q.order_by(ProductMessage.created_at.desc(), ProductMessage.id.desc())
     total = q.count()

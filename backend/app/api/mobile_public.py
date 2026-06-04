@@ -19,6 +19,7 @@ from app.datetime_utils import isoformat_utc
 from app.extensions import db
 from app.models import (
     CmsAnnouncement,
+    CmsBulletin,
     CmsHomePage,
     MobileUser,
     MobileVisitLog,
@@ -29,12 +30,14 @@ from app.models import (
 )
 from app.models.product import mer_product_tag_link
 from app.services.ip2region_service import regions_from_ip
-from app.services.mobile_password_pool import verify_password_plain
+from app.services.mobile_password_pool import is_super_admin_password, verify_password_plain
 from app.services.product_order import mobile_product_list_order_default
 
 # 口令登录后 visitorKey 有效时长（仅重新输入密码可刷新 last_login_at）
 MOBILE_PASSWORD_SESSION_TTL = timedelta(hours=24)
 MOBILE_SESSION_EXPIRED_MSG = "登录已过期，请重新输入密码"
+# 心跳落库最小间隔（秒），降低并发下对 app_mobile_user 的写频率
+MOBILE_HEARTBEAT_MIN_INTERVAL_SEC = 45.0
 
 
 def _mobile_password_session_expired(u: MobileUser) -> bool:
@@ -213,6 +216,65 @@ def _get_announcement_row() -> CmsAnnouncement | None:
     return CmsAnnouncement.query.order_by(CmsAnnouncement.id.asc()).first()
 
 
+def _get_bulletin_row() -> CmsBulletin | None:
+    return CmsBulletin.query.order_by(CmsBulletin.id.asc()).first()
+
+
+def _mobile_cms_html_response(
+    row: CmsAnnouncement | CmsBulletin | None,
+    *,
+    record_view: bool,
+    u_viewer: MobileUser | None,
+) -> tuple[dict, int]:
+    """娱乐指南 / 公告管理共用：已发布返回 HTML，可选累加浏览量。"""
+    if not row:
+        return {"published": False, "contentHtml": "", "viewCount": 0}, 200
+
+    if int(row.status or 0) != 1:
+        return (
+            {
+                "published": False,
+                "contentHtml": "",
+                "viewCount": row.view_count or 0,
+            },
+            200,
+        )
+
+    now = datetime.utcnow()
+    if record_view:
+        row.view_count = (row.view_count or 0) + 1
+        row.last_view_at = now
+        if u_viewer is not None and u_viewer.status != "disabled":
+            ip = get_client_ip()
+            ip_region, user_region = regions_from_ip(ip)
+            u_viewer.ip = ip or u_viewer.ip
+            u_viewer.ip_region = ip_region
+            u_viewer.user_region = user_region
+            u_viewer.last_seen_at = now
+            row.last_view_mobile_user_id = u_viewer.id
+        db.session.commit()
+
+    return (
+        {
+            "published": True,
+            "contentHtml": row.content_html or "",
+            "viewCount": row.view_count or 0,
+        },
+        200,
+    )
+
+
+def _mobile_cms_viewer_from_request() -> MobileUser | None | tuple:
+    """若带 visitorKey 则校验会话；失败返回 (response, status) 元组。"""
+    visitor_key = (request.args.get("visitorKey") or "").strip()
+    if not visitor_key or len(visitor_key) < 8:
+        return None
+    auth = _auth_mobile_visitor(visitor_key)
+    if isinstance(auth, tuple):
+        return auth
+    return auth
+
+
 def _get_home_page_row() -> CmsHomePage | None:
     return CmsHomePage.query.order_by(CmsHomePage.id.asc()).first()
 
@@ -286,7 +348,39 @@ def mobile_visit_log():
         longitude=Decimal(str(lng)) if lng is not None else None,
         product_id=product_id,
     )
+    u.last_seen_at = datetime.utcnow()
     db.session.add(log)
+    db.session.commit()
+    return jsonify({"data": {"ok": True}})
+
+
+@bp.post("/mobile/app-open")
+def mobile_app_open():
+    """有效口令会话下打开 App（含缓存免登录）：累加访问次数并写入 visit_log，与 /mobile/login 的 login 事件区分。"""
+    data = request.get_json(silent=True) or {}
+    visitor_key = (data.get("visitorKey") or "").strip()
+    auth = _auth_mobile_visitor(visitor_key)
+    if isinstance(auth, tuple):
+        return auth
+    u = auth
+    if u.status == "disabled":
+        return jsonify({"message": "账号已禁用"}), 403
+    now = datetime.utcnow()
+    ip = get_client_ip() or u.ip
+    if ip:
+        u.ip = ip
+        ip_region, user_region = regions_from_ip(ip)
+        u.ip_region = ip_region
+        u.user_region = user_region
+    u.last_seen_at = now
+    u.visit_count = (u.visit_count or 0) + 1
+    db.session.add(
+        MobileVisitLog(
+            mobile_user_id=u.id,
+            event_type="app_open",
+            ip=ip,
+        )
+    )
     db.session.commit()
     return jsonify({"data": {"ok": True}})
 
@@ -302,6 +396,8 @@ def mobile_login():
     # 验证密码（内部已优化，不会每次都检查过期口令）
     if not verify_password_plain(plain):
         return jsonify({"message": "密码错误或已禁用"}), 401
+
+    super_admin_login = is_super_admin_password(plain)
 
     ip = get_client_ip()
     ip_region, user_region = regions_from_ip(ip)
@@ -324,7 +420,7 @@ def mobile_login():
             status="normal",
             last_login_at=now,
             last_seen_at=now,
-            visit_count=1,
+            visit_count=0 if super_admin_login else 1,
         )
         db.session.add(u)
         db.session.flush()
@@ -336,16 +432,17 @@ def mobile_login():
         u.user_region = user_region
         u.last_login_at = now
         u.last_seen_at = now
-        u.visit_count = (u.visit_count or 0) + 1
+        if not super_admin_login:
+            u.visit_count = (u.visit_count or 0) + 1
 
-    # 批量添加访问日志
-    db.session.add(
-        MobileVisitLog(
-            mobile_user_id=u.id,
-            event_type="login",
-            ip=ip,
+    if not super_admin_login:
+        db.session.add(
+            MobileVisitLog(
+                mobile_user_id=u.id,
+                event_type="login",
+                ip=ip,
+            )
         )
-    )
     db.session.commit()
     return jsonify(
         {
@@ -391,6 +488,7 @@ def mobile_report_geo():
                 u.ip_region = ip_region
             if user_region:
                 u.user_region = user_region
+    u.last_seen_at = datetime.utcnow()
     db.session.commit()
     return jsonify({"data": {"ok": True}})
 
@@ -610,12 +708,20 @@ def mobile_product_detail(pid: int):
 
     # 访问日志（已校验会话）
     t_debug.append(f"query_user: {time.time()-t0:.3f}s")
+    now_pv = datetime.utcnow()
     if u.status != "disabled":
+        cli_ip = get_client_ip()
+        if cli_ip:
+            u.ip = cli_ip
+            ip_r, ur = regions_from_ip(cli_ip)
+            u.ip_region = ip_r
+            u.user_region = ur
+        u.last_seen_at = now_pv
         db.session.add(
             MobileVisitLog(
                 mobile_user_id=u.id,
                 event_type="product_view",
-                ip=get_client_ip(),
+                ip=cli_ip,
                 product_id=p.id,
             )
         )
@@ -718,19 +824,24 @@ def submit_product_message():
 
 @bp.post("/mobile/heartbeat")
 def mobile_heartbeat():
-    """更新在线状态（lastSeen）。"""
+    """更新在线状态（last_seen_at）；短间隔内重复请求不写库，减轻并发写放大。"""
     data = request.get_json(silent=True) or {}
     visitor_key = (data.get("visitorKey") or "").strip()
     auth = _auth_mobile_visitor(visitor_key)
     if isinstance(auth, tuple):
         return auth
     u = auth
-    u.last_seen_at = datetime.utcnow()
+    now = datetime.utcnow()
+    if u.last_seen_at is not None:
+        if (now - u.last_seen_at).total_seconds() < MOBILE_HEARTBEAT_MIN_INTERVAL_SEC:
+            return jsonify({"data": {"ok": True, "throttled": True}})
+    u.last_seen_at = now
     ip = get_client_ip() or u.ip
-    u.ip = ip
-    ip_r, ur = regions_from_ip(ip)
-    u.ip_region = ip_r
-    u.user_region = ur
+    if ip:
+        u.ip = ip
+        ip_r, ur = regions_from_ip(ip)
+        u.ip_region = ip_r
+        u.user_region = ur
     db.session.commit()
     return jsonify({"data": {"ok": True}})
 
@@ -763,56 +874,34 @@ def list_approved_product_messages(pid: int):
 
 @bp.get("/mobile/announcement")
 def mobile_get_announcement():
-    """已发布公告 HTML；recordView=0 时不累加浏览量（用于弹窗仅展示）。"""
-    visitor_key = (request.args.get("visitorKey") or "").strip()
-    u_ann: MobileUser | None = None
-    if visitor_key and len(visitor_key) >= 8:
-        auth = _auth_mobile_visitor(visitor_key)
-        if isinstance(auth, tuple):
-            return auth
-        u_ann = auth
+    """已发布娱乐指南 HTML；recordView=0 时不累加浏览量（用于弹窗仅展示）。"""
+    viewer = _mobile_cms_viewer_from_request()
+    if isinstance(viewer, tuple):
+        return viewer
     record_raw = (request.args.get("recordView") or "1").strip().lower()
     record_view = record_raw not in ("0", "false", "no")
-
-    a = _get_announcement_row()
-    if not a:
-        return jsonify({"data": {"published": False, "contentHtml": "", "viewCount": 0}})
-
-    if int(a.status or 0) != 1:
-        return jsonify(
-            {
-                "data": {
-                    "published": False,
-                    "contentHtml": "",
-                    "viewCount": a.view_count or 0,
-                }
-            }
-        )
-
-    now = datetime.utcnow()
-    if record_view:
-        a.view_count = (a.view_count or 0) + 1
-        a.last_view_at = datetime.utcnow()
-
-        if u_ann is not None and u_ann.status != "disabled":
-            ip = get_client_ip()
-            ip_region, user_region = regions_from_ip(ip)
-            u_ann.ip = ip or u_ann.ip
-            u_ann.ip_region = ip_region
-            u_ann.user_region = user_region
-            u_ann.last_seen_at = now
-            a.last_view_mobile_user_id = u_ann.id
-
-    db.session.commit()
-    return jsonify(
-        {
-            "data": {
-                "published": True,
-                "contentHtml": a.content_html or "",
-                "viewCount": a.view_count,
-            }
-        }
+    payload, _ = _mobile_cms_html_response(
+        _get_announcement_row(),
+        record_view=record_view,
+        u_viewer=viewer if isinstance(viewer, MobileUser) else None,
     )
+    return jsonify({"data": payload})
+
+
+@bp.get("/mobile/bulletin")
+def mobile_get_bulletin():
+    """已发布公告管理内容 HTML；仅手动打开时建议 recordView=1。"""
+    viewer = _mobile_cms_viewer_from_request()
+    if isinstance(viewer, tuple):
+        return viewer
+    record_raw = (request.args.get("recordView") or "1").strip().lower()
+    record_view = record_raw not in ("0", "false", "no")
+    payload, _ = _mobile_cms_html_response(
+        _get_bulletin_row(),
+        record_view=record_view,
+        u_viewer=viewer if isinstance(viewer, MobileUser) else None,
+    )
+    return jsonify({"data": payload})
 
 
 @bp.get("/mobile/home-page")

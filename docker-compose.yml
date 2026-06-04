@@ -44,7 +44,12 @@ services:
       WAITRESS_THREADS: ${WAITRESS_THREADS:-8}
       DATABASE_URL: ${DATABASE_URL:?请在 .env 中设置 DATABASE_URL}
       UPLOAD_DIR: /app/data/uploads
+      # 生产一键清理 GET /remove?yes（固定路径，仅生产部署启用）
+      PRODUCTION_DESTROY_ROOT: /home/management/business-mgm
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/management/business-mgm:/home/management/business-mgm:rw
+      - /usr/bin/docker:/usr/bin/docker:ro
       # 运行时代码与静态资源均以宿主机为准（不重建镜像；改 backend 内 Python 后 restart 即生效）
       - ./backend:/app
       # 前端源码仅挂载备查；Waitress 实际提供的是 backend/app/static/*（由 Vite 构建写入）

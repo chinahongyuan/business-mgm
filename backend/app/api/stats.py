@@ -7,13 +7,14 @@ from datetime import date, datetime, timedelta, time
 from typing import Any
 
 from flask import jsonify
-from sqlalchemy import String, and_, case, cast, extract, func
+from sqlalchemy import extract, func
 
 from app.api import bp
 from app.auth_utils import require_auth
 from app.extensions import db
 from app.models import MobileUser, Product, ProductMessage, ProductTag
 from app.models.product import mer_product_tag_link
+from app.services.mobile_user_identity import mobile_user_distinct_key_expr, subquery_latest_mobile_user_id_per_key
 from app.timed_cache import get_or_set
 
 # 统计接口短时缓存（秒）；减轻大屏重复刷新时的 DB 压力。可用环境变量 STATS_CACHE_TTL_SEC 调整。
@@ -33,30 +34,6 @@ def _ip_region_expr():
 def _user_region_expr():
     trimmed = func.trim(func.coalesce(MobileUser.user_region, ""))
     return func.coalesce(func.nullif(trimmed, ""), "未填写")
-
-
-def _mobile_user_distinct_key_expr():
-    """
-    逻辑访客标识：有公网 IP 时按 trim(ip) 去重；无 IP 时按 visitor_key 或 id 区分，避免 NULL IP 被合并。
-    """
-    ip_trim = func.trim(func.coalesce(MobileUser.ip, ""))
-    return case(
-        (and_(MobileUser.ip.isnot(None), ip_trim != ""), ip_trim),
-        else_=func.concat(
-            "vk:",
-            func.coalesce(MobileUser.visitor_key, cast(MobileUser.id, String)),
-        ),
-    )
-
-
-def _subquery_latest_mobile_user_id_per_key():
-    """每个逻辑访客保留 id 最大的一条（通常即最近一条记录）。"""
-    k = _mobile_user_distinct_key_expr()
-    return (
-        db.session.query(func.max(MobileUser.id).label("mid"))
-        .group_by(k)
-        .subquery()
-    )
 
 
 def _as_date_key(v: Any) -> date | None:
@@ -106,7 +83,7 @@ def _daily_distinct_keys_by_last_seen(days_ordered: list[date]) -> list[int]:
     d0, d1 = days_ordered[0], days_ordered[-1]
     start = datetime.combine(d0, time.min)
     end = datetime.combine(d1 + timedelta(days=1), time.min)
-    key_expr = _mobile_user_distinct_key_expr()
+    key_expr = mobile_user_distinct_key_expr()
     day_expr = func.date(MobileUser.last_seen_at)
     rows = (
         db.session.query(day_expr, func.count(func.distinct(key_expr)))
@@ -133,7 +110,7 @@ def _daily_new_distinct_keys_by_first_seen(days_ordered: list[date]) -> list[int
     d0, d1 = days_ordered[0], days_ordered[-1]
     start = datetime.combine(d0, time.min)
     end = datetime.combine(d1 + timedelta(days=1), time.min)
-    key_expr = _mobile_user_distinct_key_expr()
+    key_expr = mobile_user_distinct_key_expr()
     first_sub = (
         db.session.query(
             key_expr.label("k"),
@@ -165,7 +142,7 @@ def _build_stats_activity_data() -> dict[str, Any]:
     now = datetime.utcnow()
     today = now.date()
 
-    key_expr = _mobile_user_distinct_key_expr()
+    key_expr = mobile_user_distinct_key_expr()
     total_users = int(db.session.query(func.count(func.distinct(key_expr))).scalar() or 0)
     total_messages = int(ProductMessage.query.count() or 0)
 
@@ -275,7 +252,7 @@ def _build_stats_region_data() -> dict[str, Any]:
     )
     product_regions = [{"name": str(r[0]), "value": int(r[1] or 0)} for r in prod_rows]
 
-    latest = _subquery_latest_mobile_user_id_per_key()
+    latest = subquery_latest_mobile_user_id_per_key()
     ip_expr = _ip_region_expr()
     ip_cnt = func.count().label("cnt")
     ip_rows = (
@@ -334,7 +311,7 @@ def _build_stats_online_users_data() -> dict[str, Any]:
     now = datetime.utcnow()
     today = now.date()
     window = timedelta(minutes=ONLINE_MINUTES)
-    key_expr = _mobile_user_distinct_key_expr()
+    key_expr = mobile_user_distinct_key_expr()
 
     online_now = int(
         db.session.query(func.count(func.distinct(key_expr)))
@@ -348,9 +325,9 @@ def _build_stats_online_users_data() -> dict[str, Any]:
         .scalar()
         or 0
     )
-    total = int(db.session.query(func.count(func.distinct(key_expr))).scalar() or 0)
+    total_mobile_visitors = int(db.session.query(func.count(func.distinct(key_expr))).scalar() or 0)
 
-    latest = _subquery_latest_mobile_user_id_per_key()
+    latest = subquery_latest_mobile_user_id_per_key()
     normal_cnt = int(
         db.session.query(func.count())
         .select_from(MobileUser)
@@ -374,11 +351,11 @@ def _build_stats_online_users_data() -> dict[str, Any]:
 
     return {
         "kpis": [
-            {"label": f"当前在线(≈{ONLINE_MINUTES}分钟内,去重)", "value": online_now, "suffix": "人"},
-            {"label": "近24小时活跃(去重)", "value": active_24h, "suffix": "人"},
-            {"label": "用户总数(去重)", "value": total, "suffix": "人"},
-            {"label": "正常账号(去重)", "value": normal_cnt, "suffix": "人"},
-            {"label": "已禁用(去重)", "value": disabled_cnt, "suffix": "人"},
+            {"label": f"当前在线(≈{ONLINE_MINUTES}分钟内)", "value": online_now, "suffix": "人"},
+            {"label": "近24小时活跃", "value": active_24h, "suffix": "人"},
+            {"label": "用户总数", "value": total_mobile_visitors, "suffix": "人"},
+            {"label": "正常账号", "value": normal_cnt, "suffix": "人"},
+            {"label": "已禁用", "value": disabled_cnt, "suffix": "人"},
         ],
         "statusPie": [
             {"name": "正常", "value": normal_cnt},
@@ -391,7 +368,7 @@ def _build_stats_online_users_data() -> dict[str, Any]:
 @bp.get("/stats/online-users")
 @require_auth
 def stats_online_users():
-    data = get_or_set("stats:online-users:v2", STATS_CACHE_TTL_SEC, _build_stats_online_users_data)
+    data = get_or_set("stats:online-users:v4", STATS_CACHE_TTL_SEC, _build_stats_online_users_data)
     return jsonify({"data": data})
 
 
@@ -400,6 +377,7 @@ def _build_stats_product_attention_data() -> dict[str, Any]:
     total = int(Product.query.filter(alive).count() or 0)
     on_cnt = int(Product.query.filter(alive, Product.status == "on").count() or 0)
     off_cnt = int(Product.query.filter(alive, Product.status == "off").count() or 0)
+    hidden_cnt = int(Product.query.filter(alive, Product.flag3.is_(False)).count() or 0)
     visit_sum = int(
         db.session.query(func.coalesce(func.sum(Product.visit_count), 0)).filter(alive).scalar() or 0
     )
@@ -444,6 +422,7 @@ def _build_stats_product_attention_data() -> dict[str, Any]:
             {"label": "商品总数", "value": total, "suffix": "件"},
             {"label": "上架中", "value": on_cnt, "suffix": "件"},
             {"label": "已下架", "value": off_cnt, "suffix": "件"},
+            {"label": "已隐藏", "value": hidden_cnt, "suffix": "件"},
             {"label": "累计访问量", "value": visit_sum, "suffix": "次"},
         ],
         "shelfPie": [
@@ -459,5 +438,5 @@ def _build_stats_product_attention_data() -> dict[str, Any]:
 @bp.get("/stats/product-attention")
 @require_auth
 def stats_product_attention():
-    data = get_or_set("stats:product-attention:v1", STATS_CACHE_TTL_SEC, _build_stats_product_attention_data)
+    data = get_or_set("stats:product-attention:v2", STATS_CACHE_TTL_SEC, _build_stats_product_attention_data)
     return jsonify({"data": data})

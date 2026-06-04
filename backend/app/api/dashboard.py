@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from flask import jsonify
 from sqlalchemy import case, func
@@ -8,7 +8,8 @@ from sqlalchemy import case, func
 from app.api import bp
 from app.auth_utils import require_auth
 from app.extensions import db
-from app.models import Product
+from app.models import MobileUser, Product
+from app.services.mobile_user_identity import mobile_user_distinct_key_expr
 
 
 def _region_group_expr():
@@ -29,6 +30,9 @@ def dashboard_summary():
     on_shelf = int(Product.query.filter(alive, Product.status == "on").count() or 0)
     off_shelf = int(Product.query.filter(alive, Product.status == "off").count() or 0)
 
+    # flag3：后台「显示隐藏」，False 表示隐藏（扩展字段，与商品列表开关一致）
+    hidden_cnt = int(Product.query.filter(alive, Product.flag3.is_(False)).count() or 0)
+
     today_start = datetime.combine(today, time.min)
     today_end = datetime.combine(today, time.max)
     new_today = int(
@@ -38,8 +42,20 @@ def dashboard_summary():
         or 0
     )
 
-    visit_sum_row = db.session.query(func.coalesce(func.sum(Product.visit_count), 0)).filter(alive).scalar()
-    visit_sum = int(visit_sum_row or 0)
+    # 与统计大屏日活一致：UTC 自然日内 last_seen_at 有值的去重移动端访客（IP/设备键）
+    day_start = datetime.combine(today, time.min)
+    day_end = datetime.combine(today + timedelta(days=1), time.min)
+    key_expr = mobile_user_distinct_key_expr()
+    today_visit_users = int(
+        db.session.query(func.count(func.distinct(key_expr)))
+        .filter(
+            MobileUser.last_seen_at.isnot(None),
+            MobileUser.last_seen_at >= day_start,
+            MobileUser.last_seen_at < day_end,
+        )
+        .scalar()
+        or 0
+    )
 
     region_expr = _region_group_expr()
     on_sum = func.sum(case((Product.status == "on", 1), else_=0))
@@ -68,8 +84,13 @@ def dashboard_summary():
                     {"label": "商品总数", "value": total, "suffix": "件"},
                     {"label": "上架中", "value": on_shelf, "suffix": "件"},
                     {"label": "已下架", "value": off_shelf, "suffix": "件"},
+                    {"label": "已隐藏", "value": hidden_cnt, "suffix": "件"},
                     {"label": "今日新增", "value": new_today, "suffix": "件"},
-                    {"label": "累计访问", "value": visit_sum, "suffix": "次"},
+                    {
+                        "label": "今日访问用户数量",
+                        "value": today_visit_users,
+                        "suffix": "人",
+                    },
                 ],
                 "regionStats": {
                     "labels": region_labels,

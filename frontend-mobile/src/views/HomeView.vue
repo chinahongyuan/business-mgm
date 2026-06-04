@@ -86,6 +86,9 @@ async function submit() {
       return;
     }
     session.setVisitorKey(vk);
+    if (typeof sessionStorage !== "undefined" && vk) {
+      sessionStorage.setItem(`bmgm_app_open_${vk}`, "1");
+    }
     password.value = "";
     if (typeof sessionStorage !== "undefined") {
       sessionStorage.setItem("bmgm_from_login", Date.now().toString());

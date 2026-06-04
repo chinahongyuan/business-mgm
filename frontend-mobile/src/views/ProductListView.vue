@@ -2,7 +2,18 @@
   <div class="plist">
     <div class="plist__bg" aria-hidden="true" />
 
-    <AnnouncementModal v-model="showAnnSimple" :content-html="announcementHtml" :mode="annModalMode" />
+    <AnnouncementModal
+      v-model="showAnnSimple"
+      :content-html="announcementHtml"
+      :mode="annModalMode"
+      title="娱乐指南"
+    />
+    <AnnouncementModal
+      v-model="showBulletinModal"
+      :content-html="bulletinHtml"
+      mode="simple"
+      title="公告"
+    />
     <GeoHelpModal v-model="showGeoHelpModal" @retry="onGeoHelpRetry" />
 
     <div class="plist__inner">
@@ -330,8 +341,17 @@
               <div class="prow__top">
                 <div class="prow__titleRow">
                   <h3 class="prow__name">{{ p.name }}</h3>
-                  <span class="prow__status" :class="p.status === 'on' ? 'prow__status--on' : 'prow__status--off'">
-                    {{ p.status === "on" ? "在岗" : "休息" }}
+                  <span
+                    v-if="p.status === 'on'"
+                    class="prow__status prow__status--on"
+                    aria-label="在岗"
+                  >
+                    <MobileIcon name="sun" size="md" class="prow__statusIco" />
+                    <span class="prow__statusLbl">在岗</span>
+                  </span>
+                  <span v-else class="prow__status prow__status--off" aria-label="休息">
+                    <MobileIcon name="moon" size="md" class="prow__statusIco" />
+                    <span class="prow__statusLbl">休息</span>
                   </span>
                 </div>
                 <div class="prow__metaStack">
@@ -398,8 +418,27 @@
       </template>
     </div>
 
-    <button v-if="showAnnFab" type="button" class="fab" aria-label="查看公告" @click="openAnnSimple">
-      <span class="fab__text">公告</span>
+    <button
+      v-if="showBulletinFab"
+      type="button"
+      class="fab fab--bulletin"
+      :class="{ 'fab--bulletin--stacked': showAnnFab }"
+      aria-label="查看公告"
+      @click="openBulletin"
+    >
+      <span class="fab__text fab__text--single">公告</span>
+    </button>
+    <button
+      v-if="showAnnFab"
+      type="button"
+      class="fab fab--guide"
+      aria-label="查看娱乐指南"
+      @click="openAnnSimple"
+    >
+      <span class="fab__text" aria-hidden="true">
+        <span class="fab__line">娱乐</span>
+        <span class="fab__line">指南</span>
+      </span>
     </button>
   </div>
 </template>
@@ -448,20 +487,31 @@ const { isDesktopLayout } = useBreakpoints();
 /** 列表 → 详情 → 返回列表时恢复滚动；配合 keep-alive 保留列表状态 */
 const PLIST_SCROLL_KEY = "bmgm_plist_scroll";
 const PLIST_SCROLL_TS_KEY = "bmgm_plist_scroll_ts";
-/** 从列表进入详情前记下商品 id，返回后在 DOM 上 scrollIntoView 纠偏（应对图片懒加载后高度变化） */
+/** 从列表进入详情前记下商品 id，返回后与保存的视口偏移一起用于滚动纠偏 */
 const PLIST_FOCUS_PID_KEY = "bmgm_plist_focus_pid";
+/** 点击进入详情时该商品行相对视口的 getBoundingClientRect().top（px）；恢复时用 docY − savedTop 算出 scrollY */
+const PLIST_FOCUS_ROW_VTOP_KEY = "bmgm_plist_focus_row_vtop";
 /** 与后端口令会话 MOBILE_PASSWORD_SESSION_TTL（24h）同量级，避免仅因超时放弃恢复、却又不回顶 */
 const PLIST_SCROLL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** 懒加载等因素导致布局后继续微调；次数少，避免与其它逻辑抢滚动 */
+const PLIST_ANCHOR_RECHECK_MS = [100, 280] as const;
 
 function getWindowScrollY(): number {
   if (typeof window === "undefined") return 0;
-  return (
-    window.scrollY ||
-    window.pageYOffset ||
-    (typeof document !== "undefined" ? document.documentElement?.scrollTop ?? 0 : 0) ||
-    (typeof document !== "undefined" ? document.body?.scrollTop ?? 0 : 0) ||
-    0
-  );
+  const d = typeof document !== "undefined" ? document.documentElement?.scrollTop : undefined;
+  const b = typeof document !== "undefined" ? document.body?.scrollTop : undefined;
+  return window.scrollY ?? window.pageYOffset ?? d ?? b ?? 0;
+}
+
+/** 满足 elementTop = savedViewportTop ⇒ scrollTop = docY − savedViewportTop（docY 为行顶相对于文档的布局坐标近似值） */
+function applyPlistRowViewportAnchor(focusPid: string, savedViewportTop: number): boolean {
+  if (typeof window === "undefined") return false;
+  const el = document.querySelector(`[data-plist-pid="${focusPid}"]`) as HTMLElement | null;
+  if (!el) return false;
+  const docY = el.getBoundingClientRect().top + getWindowScrollY();
+  const target = docY - savedViewportTop;
+  window.scrollTo({ top: Math.max(0, target), left: 0, behavior: "auto" });
+  return true;
 }
 
 function restoreScrollPosition() {
@@ -469,45 +519,63 @@ function restoreScrollPosition() {
   const raw = sessionStorage.getItem(PLIST_SCROLL_KEY);
   const tsRaw = sessionStorage.getItem(PLIST_SCROLL_TS_KEY);
   const focusPid = sessionStorage.getItem(PLIST_FOCUS_PID_KEY) || "";
-  if (raw == null || tsRaw == null) {
-    void tryScrollToProductRow(focusPid);
-    return;
-  }
-  const ts = parseInt(tsRaw, 10);
-  if (Number.isNaN(ts) || Date.now() - ts > PLIST_SCROLL_MAX_AGE_MS) {
-    sessionStorage.removeItem(PLIST_SCROLL_KEY);
-    sessionStorage.removeItem(PLIST_SCROLL_TS_KEY);
-    void tryScrollToProductRow(focusPid);
-    return;
-  }
-  const y = parseInt(raw, 10);
+  const savedVtopRaw = sessionStorage.getItem(PLIST_FOCUS_ROW_VTOP_KEY);
+
   sessionStorage.removeItem(PLIST_SCROLL_KEY);
   sessionStorage.removeItem(PLIST_SCROLL_TS_KEY);
-  if (Number.isNaN(y)) {
-    void tryScrollToProductRow(focusPid);
+  sessionStorage.removeItem(PLIST_FOCUS_PID_KEY);
+  sessionStorage.removeItem(PLIST_FOCUS_ROW_VTOP_KEY);
+
+  let savedViewportTop: number | null = null;
+  if (savedVtopRaw != null && savedVtopRaw.length > 0) {
+    const n = Number.parseInt(savedVtopRaw, 10);
+    if (!Number.isNaN(n)) savedViewportTop = n;
+  }
+
+  const hasAnchor = focusPid.length > 0 && /^\d+$/.test(focusPid) && savedViewportTop != null;
+
+  let warmY: number | null = null;
+  if (raw != null && tsRaw != null) {
+    const ts = Number.parseInt(tsRaw, 10);
+    if (!Number.isNaN(ts) && Date.now() - ts <= PLIST_SCROLL_MAX_AGE_MS) {
+      const y = Number.parseInt(raw, 10);
+      if (!Number.isNaN(y)) warmY = y;
+    }
+  }
+
+  const runAnchorPasses = () => {
+    if (!hasAnchor || savedViewportTop == null) return;
+    applyPlistRowViewportAnchor(focusPid, savedViewportTop);
+    requestAnimationFrame(() => {
+      applyPlistRowViewportAnchor(focusPid, savedViewportTop!);
+      for (const ms of PLIST_ANCHOR_RECHECK_MS) {
+        window.setTimeout(() => applyPlistRowViewportAnchor(focusPid, savedViewportTop!), ms);
+      }
+    });
+  };
+
+  if (!hasAnchor) {
+    if (warmY != null) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: Math.max(0, warmY!), left: 0, behavior: "auto" });
+        });
+      });
+    } else if (focusPid && /^\d+$/.test(focusPid)) {
+      void tryScrollToProductRow(focusPid);
+    }
     return;
   }
-  /** 双 rAF：等合帧后再滚；部分 WebKit 单帧内 scrollTo 会被后续布局冲掉 */
+
+  /** 双 rAF：等合帧；先 Warm Y 拉回大致页位再按几何锚对齐（修正上一版 delta 正负反了的问题） */
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      window.scrollTo({ top: y, left: 0, behavior: "auto" });
-      void tryScrollToProductRowAfterY(focusPid);
-    });
-  });
-}
-
-function tryScrollToProductRowAfterY(focusPid: string) {
-  if (!focusPid || !/^\d+$/.test(focusPid)) {
-    if (sessionStorage.getItem(PLIST_FOCUS_PID_KEY)) sessionStorage.removeItem(PLIST_FOCUS_PID_KEY);
-    return;
-  }
-  void nextTick(() => {
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-plist-pid="${focusPid}"]`);
-      if (el && typeof (el as HTMLElement).scrollIntoView === "function") {
-        (el as HTMLElement).scrollIntoView({ block: "start", behavior: "auto" });
+      if (warmY != null) {
+        window.scrollTo({ top: Math.max(0, warmY), left: 0, behavior: "auto" });
       }
-      sessionStorage.removeItem(PLIST_FOCUS_PID_KEY);
+      void nextTick(() => {
+        runAnchorPasses();
+      });
     });
   });
 }
@@ -516,11 +584,10 @@ function tryScrollToProductRow(focusPid: string) {
   if (!focusPid || !/^\d+$/.test(focusPid)) return;
   void nextTick(() => {
     requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-plist-pid="${focusPid}"]`);
-      if (el && typeof (el as HTMLElement).scrollIntoView === "function") {
-        (el as HTMLElement).scrollIntoView({ block: "start", behavior: "auto" });
+      const el = document.querySelector(`[data-plist-pid="${focusPid}"]`) as HTMLElement | null;
+      if (el && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ block: "nearest", behavior: "auto" });
       }
-      sessionStorage.removeItem(PLIST_FOCUS_PID_KEY);
     });
   });
 }
@@ -613,12 +680,16 @@ function debouncedLoadMeta() {
   }, 300);
 }
 const announcementHtml = ref("");
+const bulletinHtml = ref("");
+const showBulletinModal = ref(false);
 
 const sentinelRef = ref<HTMLElement | null>(null);
 let scrollObserver: IntersectionObserver | null = null;
 
-/** 管理后台已发布公告时为 true，控制悬浮入口显示 */
+/** 管理后台已发布娱乐指南时为 true */
 const showAnnFab = ref(false);
+/** 管理后台公告管理已发布时为 true */
+const showBulletinFab = ref(false);
 
 /** 手风琴：城市 / 区域 / 标签 / 分类 / 商品状态 同时只展开一项 */
 type FilterPanelId = "city" | "district" | "tags" | "categories" | "status";
@@ -788,6 +859,14 @@ function clearAllFilters() {
 function goDetail(id: number) {
   if (typeof sessionStorage !== "undefined") {
     sessionStorage.setItem(PLIST_FOCUS_PID_KEY, String(id));
+    if (typeof document !== "undefined") {
+      const el = document.querySelector(`[data-plist-pid="${id}"]`) as HTMLElement | null;
+      if (el) {
+        sessionStorage.setItem(PLIST_FOCUS_ROW_VTOP_KEY, String(Math.round(el.getBoundingClientRect().top)));
+      } else {
+        sessionStorage.removeItem(PLIST_FOCUS_ROW_VTOP_KEY);
+      }
+    }
   }
   void router.push({ name: "product-detail", params: { id: String(id) } });
 }
@@ -904,11 +983,60 @@ async function loadMeta() {
   }
 }
 
+type CmsMobilePayload = { published?: boolean; contentHtml?: string };
+
+async function loadBulletin(recordView: boolean): Promise<{ published: boolean; html: string }> {
+  try {
+    return await withRetries(
+      async () => {
+        const { data } = await http.get<{ data: CmsMobilePayload }>("/mobile/bulletin", {
+          params: {
+            visitorKey: session.visitorKey,
+            recordView: recordView ? "1" : "0",
+            ipRegion: "H5",
+          },
+        });
+        const d = data?.data;
+        const published = !!d?.published;
+        const html = published ? (d?.contentHtml || "").trim() : "";
+        if (recordView) {
+          bulletinHtml.value = html;
+        }
+        return { published, html };
+      },
+      { attempts: 3, baseDelayMs: 500 },
+    );
+  } catch {
+    if (recordView) {
+      bulletinHtml.value = "";
+    }
+    return { published: false, html: "" };
+  }
+}
+
+/** 仅更新公告浮标显隐，不弹窗 */
+async function refreshBulletinFab() {
+  if (!session.isLoggedIn()) {
+    showBulletinFab.value = false;
+    return;
+  }
+  const { published, html } = await loadBulletin(false);
+  showBulletinFab.value = published && !!html;
+}
+
+async function openBulletin() {
+  const { published, html } = await loadBulletin(true);
+  if (published && html) {
+    bulletinHtml.value = html;
+    showBulletinModal.value = true;
+  }
+}
+
 async function loadAnnouncement(recordView: boolean): Promise<{ published: boolean; html: string }> {
   try {
     return await withRetries(
       async () => {
-        const { data } = await http.get<{ data: { published?: boolean; contentHtml?: string } }>("/mobile/announcement", {
+        const { data } = await http.get<{ data: CmsMobilePayload }>("/mobile/announcement", {
           params: {
             visitorKey: session.visitorKey,
             recordView: recordView ? "1" : "0",
@@ -1121,6 +1249,7 @@ onBeforeRouteLeave((to) => {
 });
 
 onActivated(() => {
+  void loadListTitle().catch(() => {});
   void nextTick(() => {
     setupInfiniteScroll();
     restoreScrollPosition();
@@ -1142,7 +1271,10 @@ onMounted(async () => {
       runListAnnouncement().catch(() => {
         showAnnFab.value = false;
       }),
-      loadProducts(false)
+      refreshBulletinFab().catch(() => {
+        showBulletinFab.value = false;
+      }),
+      loadProducts(false),
     ]);
   } finally {
     await nextTick(() => {
@@ -1794,21 +1926,48 @@ watch(city, () => {
 
 .prow__status {
   flex-shrink: 0;
-  font-size: 0.65rem;
-  font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 6px;
+}
+
+.prow__status--on,
+.prow__status--off {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 7px 14px 7px 11px;
+  border-radius: 999px;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    0 2px 6px rgba(15, 23, 42, 0.07);
 }
 
 .prow__status--on {
-  background: rgba(34, 197, 94, 0.15);
-  color: #15803d;
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.24) 0%, rgba(22, 163, 74, 0.14) 100%);
+  color: #14532d;
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    0 2px 6px rgba(22, 101, 52, 0.14);
 }
 
 .prow__status--off {
-  background: rgba(148, 163, 184, 0.2);
-  color: #64748b;
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.14) 0%, rgba(51, 65, 85, 0.1) 100%);
+  color: #1e293b;
+  border: 1px solid rgba(100, 116, 139, 0.5);
+}
+
+.prow__status--on .prow__statusIco,
+.prow__status--off .prow__statusIco {
+  opacity: 0.92;
+}
+
+.prow__status--on .prow__statusLbl,
+.prow__status--off .prow__statusLbl {
+  font-weight: 800;
 }
 
 .prow__metaStack {
@@ -2071,12 +2230,17 @@ watch(city, () => {
 }
 
 .fab {
+  --fab-offset: 20px;
+  --fab-stack: 0px;
   position: fixed;
   right: 16px;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
+  bottom: calc(var(--fab-offset) + var(--fab-stack) + env(safe-area-inset-bottom, 0px));
+  width: 56px;
+  height: 56px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 4px;
+  border-radius: 14px;
   border: 1px solid rgba(14, 165, 233, 0.35);
   background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
   color: #fff;
@@ -2086,12 +2250,44 @@ watch(city, () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
 .fab__text {
-  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.fab__line {
+  display: block;
+  font-size: 0.6875rem;
+}
+
+.fab__text--single {
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+}
+
+.fab--guide {
+  --fab-stack: 0px;
+}
+
+.fab--bulletin {
+  --fab-stack: 0px;
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 4px 16px rgba(180, 83, 9, 0.2);
+}
+
+.fab--bulletin--stacked {
+  --fab-stack: calc(56px + 10px);
 }
 
 /* —— 宽屏：与后台一致的视口断点；列表双列 + 桌面 hover，不改动窄屏单列 —— */
@@ -2224,8 +2420,9 @@ watch(city, () => {
     border-radius: 18px;
   }
 
-  /* 与 app-shell 居中宽度对齐，公告按钮贴在内容区右缘内侧 */
-  .fab {
+  /* 与 app-shell 居中宽度对齐，浮标贴在内容区右缘内侧 */
+  .fab--guide,
+  .fab--bulletin {
     right: calc((100vw - min(var(--mweb-shell-max, 1440px), 100vw)) / 2 + 40px);
   }
 }
@@ -2264,8 +2461,12 @@ watch(city, () => {
     background: rgba(255, 255, 255, 0.35);
   }
 
-  .fab:hover {
+  .fab--guide:hover {
     box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
+  }
+
+  .fab--bulletin:hover {
+    box-shadow: 0 8px 22px rgba(180, 83, 9, 0.28);
   }
 }
 </style>

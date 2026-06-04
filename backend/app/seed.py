@@ -4,17 +4,54 @@ from __future__ import annotations
 
 from app.auth_utils import hash_password
 from app.extensions import db
-from app.models import AdminUser, CmsAnnouncement, CmsHomePage, Menu
+from app.models import AdminUser, CmsAnnouncement, CmsBulletin, CmsHomePage, Menu
 from app.models.product import ProductCategory
 
 
+def ensure_announcement_menu_title() -> None:
+    """将侧栏原「公告管理」路径菜单名同步为「娱乐指南管理」（已有库升级）。"""
+    row = Menu.query.filter_by(path="/announcements").first()
+    if row and row.title != "娱乐指南管理":
+        row.title = "娱乐指南管理"
+        db.session.commit()
+
+
+def ensure_bulletin_menu() -> None:
+    """保证侧栏存在「公告管理」菜单（/bulletins），并授权给 id=1 管理员。"""
+    if Menu.query.filter_by(path="/bulletins").first():
+        return
+    m = Menu(
+        parent_id=None,
+        title="公告管理",
+        path="/bulletins",
+        icon="Document",
+        sort_order=8,
+        is_active=True,
+    )
+    db.session.add(m)
+    db.session.flush()
+    admin = db.session.get(AdminUser, 1)
+    if admin is not None and m not in admin.menus:
+        admin.menus.append(m)
+    db.session.commit()
+
+
+def ensure_cms_bulletin_row() -> None:
+    if not CmsBulletin.query.first():
+        db.session.add(CmsBulletin())
+        db.session.commit()
+
+
 def ensure_cms_rows() -> None:
-    """保证公告、首页各有一条记录（单条表）。"""
+    """保证娱乐指南、公告、首页各有一条记录（单条表）。"""
     if not CmsAnnouncement.query.first():
         db.session.add(CmsAnnouncement())
+    ensure_cms_bulletin_row()
     if not CmsHomePage.query.first():
         db.session.add(CmsHomePage())
     db.session.commit()
+    ensure_announcement_menu_title()
+    ensure_bulletin_menu()
 
 
 def ensure_product_categories() -> None:
@@ -109,9 +146,10 @@ def seed_database() -> None:
 
     for title, path, order, icon in [
         ("留言板", "/message-boards", 4, "ChatDotRound"),
-        ("公告管理", "/announcements", 5, "Bell"),
-        ("首页管理", "/home-pages", 6, "HomeFilled"),
-        ("密码管理", "/passwords", 7, "Key"),
+        ("娱乐指南管理", "/announcements", 5, "Bell"),
+        ("公告管理", "/bulletins", 6, "Document"),
+        ("首页管理", "/home-pages", 7, "HomeFilled"),
+        ("密码管理", "/passwords", 8, "Key"),
     ]:
         db.session.add(
             Menu(

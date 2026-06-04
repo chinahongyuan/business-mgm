@@ -2,7 +2,10 @@
   <div class="page">
     <el-card class="panel" shadow="never">
       <div class="toolbar">
-        <div class="toolbar-title">移动端用户</div>
+        <div class="toolbar-left">
+          <div class="toolbar-title">移动端用户</div>
+          <p class="toolbar-hint">按 IP 去重展示（无 IP 时按设备 visitorKey）；同一访客多条记录仅保留最新登录的一条。</p>
+        </div>
         <div class="toolbar-actions">
           <el-button :disabled="!selectedIds.length" type="warning" @click="batchStatus('disabled')">一键禁用</el-button>
           <el-button :disabled="!selectedIds.length" type="success" @click="batchStatus('normal')">一键恢复</el-button>
@@ -79,8 +82,8 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column column-key="lastLoginAt" label="最新登录时间" v-bind="tw.col('lastLoginAt', { minWidth: 172 })">
-          <template #default="{ row }">{{ formatDateTime(row.lastLoginAt) }}</template>
+        <el-table-column column-key="lastSeenAt" label="最后活跃时间" v-bind="tw.col('lastSeenAt', { minWidth: 172 })">
+          <template #default="{ row }">{{ formatDateTime(row.lastSeenAt) }}</template>
         </el-table-column>
         <el-table-column column-key="isOnline" label="在线状态" v-bind="tw.col('isOnline', { minWidth: 100 })" align="center">
           <template #default="{ row }">
@@ -124,7 +127,7 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="所属区域">{{ drawer.detail.userRegion || "—" }}</el-descriptions-item>
-          <el-descriptions-item label="最近登录时间">{{ formatDateTime(drawer.detail.lastLoginAt) }}</el-descriptions-item>
+          <el-descriptions-item label="最后活跃时间">{{ formatDateTime(drawer.detail.lastSeenAt) }}</el-descriptions-item>
           <el-descriptions-item label="最新访问次数">{{ drawer.detail.visitCount }}</el-descriptions-item>
           <el-descriptions-item label="最近访问商品 ID">{{ drawer.detail.lastProductId ?? "—" }}</el-descriptions-item>
           <el-descriptions-item label="最近提交留言 ID">{{ drawer.detail.lastMessageId ?? "—" }}</el-descriptions-item>
@@ -282,10 +285,23 @@ onMounted(() => load());
   flex-wrap: wrap;
 }
 
+.toolbar-left {
+  min-width: 0;
+  flex: 1;
+}
+
 .toolbar-title {
   font-size: 16px;
   font-weight: 600;
   color: #0f172a;
+}
+
+.toolbar-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64748b;
+  max-width: 42rem;
 }
 
 .toolbar-actions {

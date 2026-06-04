@@ -113,6 +113,12 @@ export const router = createRouter({
           path: "announcements",
           name: "announcements",
           component: () => import("@/views/cms/AnnouncementEdit.vue"),
+          meta: { title: "娱乐指南管理" },
+        },
+        {
+          path: "bulletins",
+          name: "bulletins",
+          component: () => import("@/views/cms/BulletinEdit.vue"),
           meta: { title: "公告管理" },
         },
         {

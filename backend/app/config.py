@@ -49,6 +49,8 @@ _DEFAULT_ADMIN_JWT_EXPIRES_HOURS = 10 * 365 * 24  # 约 10 年；需短会话可
 
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-change-me")
+    # 反向代理后信任 X-Forwarded-For / X-Real-IP（生产环境 Nginx/Ingress 建议开启）
+    TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "").strip().lower() in ("1", "true", "yes", "on")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",

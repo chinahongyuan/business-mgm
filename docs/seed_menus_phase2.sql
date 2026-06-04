@@ -12,9 +12,10 @@ INSERT IGNORE INTO sys_menu (id, parent_id, title, path, icon, sort_order, is_ac
   (9, 7, '标签管理', '/merchant/tags', 'PriceTag', 2, 1),
   -- 单页模块
   (10, NULL, '留言板', '/message-boards', 'ChatDotRound', 4, 1),
-  (11, NULL, '公告管理', '/announcements', 'Bell', 5, 1),
-  (12, NULL, '首页管理', '/home-pages', 'HomeFilled', 6, 1),
-  (13, NULL, '密码管理', '/passwords', 'Key', 7, 1),
+  (11, NULL, '娱乐指南管理', '/announcements', 'Bell', 5, 1),
+  (22, NULL, '公告管理', '/bulletins', 'Document', 6, 1),
+  (12, NULL, '首页管理', '/home-pages', 'HomeFilled', 7, 1),
+  (13, NULL, '密码管理', '/passwords', 'Key', 8, 1),
   -- 统计管理
   (14, NULL, '统计管理', NULL, 'DataAnalysis', 8, 1),
   (15, 14, '活跃度统计', '/stats/activity', 'TrendCharts', 1, 1),
@@ -28,8 +29,8 @@ INSERT IGNORE INTO sys_menu (id, parent_id, title, path, icon, sort_order, is_ac
 
 -- 为默认管理员（id=1）授权新菜单（重复执行安全）
 INSERT IGNORE INTO sys_admin_user_menu (user_id, menu_id) VALUES
-  (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13),
+  (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 22), (1, 12), (1, 13),
   (1, 14), (1, 15), (1, 16), (1, 17), (1, 18),
   (1, 19), (1, 20), (1, 21);
 
-ALTER TABLE sys_menu AUTO_INCREMENT = 22;
+ALTER TABLE sys_menu AUTO_INCREMENT = 23;

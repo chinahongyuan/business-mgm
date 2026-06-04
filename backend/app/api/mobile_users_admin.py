@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from flask import g, jsonify, request
-from sqlalchemy import or_
+from sqlalchemy import and_, case, or_
 
 from app.api import bp
 from app.auth_utils import require_auth
 from app.datetime_utils import isoformat_utc
 from app.extensions import db
 from app.models import MobileUser, ProductMessage
+from app.services.mobile_user_identity import subquery_latest_mobile_user_id_per_key
 from app.services.ip2region_service import display_ip_region_only, display_regions_for_user
 from app.services.log_service import write_operation_log
 
@@ -32,7 +33,7 @@ def _serialize_user_list(u: MobileUser) -> dict:
         "ipRegion": ip_r,
         "status": u.status,
         "userRegion": ur,
-        "lastLoginAt": isoformat_utc(u.last_login_at),
+        "lastSeenAt": isoformat_utc(u.last_seen_at),
         "isOnline": _is_online(u),
     }
 
@@ -85,7 +86,8 @@ def list_mobile_users():
     kw = (request.args.get("keyword") or "").strip()
     region = (request.args.get("userRegion") or "").strip()
 
-    q = MobileUser.query
+    latest = subquery_latest_mobile_user_id_per_key()
+    q = MobileUser.query.join(latest, MobileUser.id == latest.c.mid)
     if status_f in ("normal", "disabled"):
         q = q.filter(MobileUser.status == status_f)
     if kw:
@@ -99,7 +101,23 @@ def list_mobile_users():
     if region:
         q = q.filter(MobileUser.user_region.contains(region))
 
-    q = q.order_by(MobileUser.id.desc())
+    # 与 _is_online() 一致：last_seen_at 落在 ONLINE_WINDOW 内视为在线，在线排前
+    seen_since = datetime.utcnow() - ONLINE_WINDOW
+    online_rank = case(
+        (
+            and_(
+                MobileUser.last_seen_at.isnot(None),
+                MobileUser.last_seen_at >= seen_since,
+            ),
+            0,
+        ),
+        else_=1,
+    )
+    q = q.order_by(
+        online_rank,
+        MobileUser.last_login_at.is_(None),
+        MobileUser.last_login_at.desc(),
+    )
     total = q.count()
     rows = q.offset((page - 1) * page_size).limit(page_size).all()
     return jsonify(

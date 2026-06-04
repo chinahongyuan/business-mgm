@@ -16,8 +16,13 @@
         <section class="pd__surface pd__surface--hero" :class="detail.status === 'on' ? 'pd__surface--on' : 'pd__surface--off'">
           <h1 class="pd__title">{{ detail.name }}</h1>
           <div class="pd__row">
-            <span class="pd__status" :class="detail.status === 'on' ? 'pd__status--on' : 'pd__status--off'">
-              {{ detail.status === "on" ? "在岗" : "休息" }}
+            <span v-if="detail.status === 'on'" class="pd__status pd__status--on" aria-label="在岗">
+              <MobileIcon name="sun" size="md" class="pd__statusIco" />
+              <span class="pd__statusLbl">在岗</span>
+            </span>
+            <span v-else class="pd__status pd__status--off" aria-label="休息">
+              <MobileIcon name="moon" size="md" class="pd__statusIco" />
+              <span class="pd__statusLbl">休息</span>
             </span>
             <div class="pd__priceBlock" aria-label="价格">
               <span class="pd__priceYuan">¥</span>
@@ -205,7 +210,13 @@ function priceParts(n: number) {
   return { int: a, frac: b || "00" };
 }
 
+function listDocumentTitle() {
+  const mt = mobileTitle.value.trim();
+  return mt || "商品列表";
+}
+
 function applyDocumentTitle() {
+  if (route.name !== "product-detail") return;
   const name = (detail.value?.name || "").trim();
   const mt = mobileTitle.value.trim();
   if (name && mt) {
@@ -213,8 +224,13 @@ function applyDocumentTitle() {
   } else if (name) {
     document.title = name;
   } else {
-    document.title = mobileTitle.value.trim() || "商品详情";
+    document.title = mt || "商品详情";
   }
+}
+
+/** 返回列表时恢复标题，不带商品名 */
+function restoreListDocumentTitle() {
+  document.title = listDocumentTitle();
 }
 
 watch(
@@ -249,12 +265,16 @@ watch(lightboxSrc, (src) => {
 watch([() => detail.value?.name, mobileTitle], () => applyDocumentTitle());
 
 function goBack() {
+  restoreListDocumentTitle();
   void router.push({ name: "products" });
 }
 
 onBeforeRouteLeave((to) => {
-  if (to.name === "products" && typeof sessionStorage !== "undefined") {
-    sessionStorage.setItem("bmgm_skip_list_ann", "1");
+  if (to.name === "products") {
+    restoreListDocumentTitle();
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem("bmgm_skip_list_ann", "1");
+    }
   }
 });
 
@@ -471,10 +491,13 @@ onUnmounted(() => {
 }
 
 .pd__surface--off {
-  border-color: rgba(148, 163, 184, 0.45);
+  border-color: rgba(100, 116, 139, 0.4);
   box-shadow:
-    0 0 0 2px rgba(148, 163, 184, 0.2),
-    0 8px 24px rgba(15, 23, 42, 0.06);
+    0 0 0 2px rgba(148, 163, 184, 0.35),
+    0 0 0 8px rgba(148, 163, 184, 0.12),
+    0 0 0 18px rgba(148, 163, 184, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 10px 32px rgba(15, 23, 42, 0.07);
 }
 
 .pd__surface--block {
@@ -540,21 +563,49 @@ onUnmounted(() => {
 }
 
 .pd__status {
-  font-size: 0.65rem;
-  font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.pd__status--on,
+.pd__status--off {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 7px 14px 7px 11px;
+  border-radius: 999px;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    0 2px 6px rgba(15, 23, 42, 0.07);
 }
 
 .pd__status--on {
-  background: rgba(34, 197, 94, 0.15);
-  color: #15803d;
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.24) 0%, rgba(22, 163, 74, 0.14) 100%);
+  color: #14532d;
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    0 2px 6px rgba(22, 101, 52, 0.14);
 }
 
 .pd__status--off {
-  background: rgba(148, 163, 184, 0.2);
-  color: #64748b;
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.14) 0%, rgba(51, 65, 85, 0.1) 100%);
+  color: #1e293b;
+  border: 1px solid rgba(100, 116, 139, 0.5);
+}
+
+.pd__status--on .pd__statusIco,
+.pd__status--off .pd__statusIco {
+  opacity: 0.92;
+}
+
+.pd__status--on .pd__statusLbl,
+.pd__status--off .pd__statusLbl {
+  font-weight: 800;
 }
 
 .pd__priceBlock {

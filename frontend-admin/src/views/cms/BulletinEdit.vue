@@ -3,14 +3,14 @@
     <el-card v-loading="loading" class="panel" shadow="never">
       <template #header>
         <div class="card-head">
-          <span class="toolbar-title">娱乐指南管理</span>
+          <span class="toolbar-title">公告管理</span>
           <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
         </div>
       </template>
 
       <el-form label-width="120px" class="form cms-form">
         <section class="form-section">
-          <h3 class="form-section-title">娱乐指南状态</h3>
+          <h3 class="form-section-title">公告状态</h3>
           <el-form-item label="发布状态">
             <el-radio-group v-model="form.status">
               <el-radio value="published">发布</el-radio>
@@ -20,11 +20,11 @@
         </section>
 
         <section class="form-section">
-          <h3 class="form-section-title">娱乐指南浏览情况</h3>
+          <h3 class="form-section-title">公告浏览情况</h3>
           <el-row :gutter="20">
             <el-col :xs="24" :sm="12" :md="6">
               <div class="read-stat">
-                <div class="read-stat__label">娱乐指南浏览量</div>
+                <div class="read-stat__label">公告浏览量</div>
                 <div class="read-stat__value">{{ meta.viewCount }}</div>
               </div>
             </el-col>
@@ -50,7 +50,7 @@
         </section>
 
         <section class="form-section form-section--last">
-          <h3 class="form-section-title">娱乐指南内容</h3>
+          <h3 class="form-section-title">公告内容</h3>
           <el-form-item :label-width="0" class="form-item-editor">
             <RichTextEditor v-model="form.contentHtml" class="editor-block" />
           </el-form-item>
@@ -68,7 +68,7 @@ import RichTextEditor from "@/components/RichTextEditor.vue";
 import { http } from "@/api/http";
 import { formatDateTime } from "@/utils/datetime";
 
-type AnnouncementDto = {
+type BulletinDto = {
   id: number;
   contentHtml: string;
   status: "published" | "draft";
@@ -95,7 +95,7 @@ const meta = reactive({
   lastViewIpRegion: null as string | null,
 });
 
-function applyDto(d: AnnouncementDto) {
+function applyDto(d: BulletinDto) {
   form.contentHtml = d.contentHtml || "";
   form.status = d.status === "published" ? "published" : "draft";
   meta.viewCount = d.viewCount ?? 0;
@@ -108,7 +108,7 @@ function applyDto(d: AnnouncementDto) {
 async function load() {
   loading.value = true;
   try {
-    const { data } = await http.get<{ data: AnnouncementDto }>("/cms/announcement");
+    const { data } = await http.get<{ data: BulletinDto }>("/cms/bulletin");
     if (data?.data) applyDto(data.data);
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : "加载失败");
@@ -120,7 +120,7 @@ async function load() {
 async function submit() {
   saving.value = true;
   try {
-    const { data } = await http.put<{ data: AnnouncementDto }>("/cms/announcement", {
+    const { data } = await http.put<{ data: BulletinDto }>("/cms/bulletin", {
       contentHtml: form.contentHtml,
       status: form.status,
     });
@@ -180,13 +180,6 @@ onMounted(load);
   letter-spacing: 0.02em;
   color: rgba(15, 23, 42, 0.72);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.muted {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: rgba(15, 23, 42, 0.5);
 }
 
 .read-stat {

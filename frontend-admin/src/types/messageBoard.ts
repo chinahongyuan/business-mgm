@@ -1,7 +1,8 @@
 export interface MessageBoardRow {
   id: number;
   mobileUserId: number | null;
-  ipRegion: string;
+  /** 列表：关联 app_mobile_user.ip；管理员留言为「管理后台」等 */
+  mobileUserIp: string;
   productId: number;
   productName: string;
   coverImage: string | null;

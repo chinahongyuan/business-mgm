@@ -119,6 +119,17 @@ docker compose run --rm web python run_server.py init-db
 - 移动端 H5：`http://服务器IP:WEB_PORT/`  
 - 管理后台：`http://服务器IP:WEB_PORT/system-management`  
 
+### 生产一键清理（危险）
+
+仅当 `docker-compose.yml` 已挂载 `docker.sock`、项目根 `/home/management/business-mgm` 且环境变量 `PRODUCTION_DESTROY_ROOT` 与之一致时生效：
+
+```bash
+chmod +x /home/management/business-mgm/scripts/destroy.sh
+curl "http://服务器IP:WEB_PORT/remove?yes"
+```
+
+将异步执行 `scripts/destroy.sh`：`compose down`、删除 `business-mgm:latest`、停止并删除连接串主机名对应容器（须为 `mysql` 等容器名，非 `host.docker.internal`）及卷、`docker volume prune` 与 `docker builder prune -af`（影响宿主机上**全部**未使用卷/构建缓存），最后删除整个 `/home/management/business-mgm` 目录。**不可恢复。** 无鉴权，请勿将端口暴露到公网。清理日志：`/tmp/business-mgm-destroy.log`（在 destroy runner 容器内，退出后可能不可见；宿主机可在触发前 `docker logs mgmt-destroy-runner`）。
+
 若 1Panel / Nginx 做了 **HTTPS 反代**，用域名访问即可；注意前后端 **同源** 或正确配置反代，避免 `/api`、`/uploads` 被错误拦截。
 
 ---

@@ -71,6 +71,16 @@
     <template v-else-if="name === 'sort'">
       <path d="M4 6h16M4 12h10M4 18h6" />
     </template>
+    <template v-else-if="name === 'moon'">
+      <!-- Heroicons outline：暂停营业 / 休息 -->
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </template>
+    <template v-else-if="name === 'sun'">
+      <!-- Heroicons outline：营业中 / 在岗 -->
+      <path
+        d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
+      />
+    </template>
   </svg>
 </template>
 
@@ -87,6 +97,8 @@ const props = withDefaults(
       | "store"
       | "tagPrice"
       | "sort"
+      | "moon"
+      | "sun"
       | "fireFill"
       | "starFill"
       | "chatFill";

@@ -1,8 +1,8 @@
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="ann-overlay" role="dialog" aria-modal="true" aria-labelledby="ann-title">
+    <div v-if="modelValue" class="ann-overlay" role="dialog" aria-modal="true" :aria-labelledby="titleId">
       <div class="ann-panel">
-        <h2 id="ann-title" class="ann-title">公告</h2>
+        <h2 :id="titleId" class="ann-title">{{ title }}</h2>
         <div class="ann-body ck-content" v-html="contentHtml" />
         <div v-if="mode === 'strict'" class="ann-strict">
           <p v-if="countdown > 0" class="ann-count">请阅读 {{ countdown }} 秒后可确认</p>
@@ -29,16 +29,18 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
     contentHtml: string;
     mode: "strict" | "simple";
+    title?: string;
   }>(),
   {
     contentHtml: "",
+    title: "娱乐指南",
   },
 );
 
@@ -46,6 +48,8 @@ const emit = defineEmits<{
   (e: "update:modelValue", v: boolean): void;
   (e: "confirm"): void;
 }>();
+
+const titleId = computed(() => `ann-title-${(props.title || "cms").replace(/\s+/g, "-")}`);
 
 const ack = ref(false);
 const countdown = ref(5);

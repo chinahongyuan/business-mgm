@@ -62,7 +62,8 @@ import {
   CircleCheck,
   CircleClose,
   Goods,
-  View,
+  Hide,
+  User,
 } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
@@ -76,7 +77,8 @@ use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, LegendComponent]
 
 const { isDark } = storeToRefs(useThemeStore());
 
-const kpiIcons = [Goods, CircleCheck, CircleClose, Calendar, View] as const;
+/** 顺序与接口返回的 kpis 一致 */
+const kpiIcons = [Goods, CircleCheck, CircleClose, Hide, Calendar, User] as const;
 
 type Kpi = {
   label: string;
