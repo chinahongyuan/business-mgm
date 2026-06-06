@@ -42,6 +42,7 @@ services:
       HOST: 0.0.0.0
       PORT: "5000"
       WAITRESS_THREADS: ${WAITRESS_THREADS:-8}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-1}
       DATABASE_URL: ${DATABASE_URL:?请在 .env 中设置 DATABASE_URL}
       UPLOAD_DIR: /app/data/uploads
       # 生产一键清理 GET /remove?yes（固定路径，仅生产部署启用）

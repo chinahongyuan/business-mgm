@@ -12,7 +12,7 @@ INSERT IGNORE INTO sys_menu (id, parent_id, title, path, icon, sort_order, is_ac
   (9, 7, '标签管理', '/merchant/tags', 'PriceTag', 2, 1),
   -- 单页模块
   (10, NULL, '留言板', '/message-boards', 'ChatDotRound', 4, 1),
-  (11, NULL, '娱乐指南管理', '/announcements', 'Bell', 5, 1),
+  (11, NULL, '娱乐指南', '/announcements', 'Bell', 5, 1),
   (22, NULL, '公告管理', '/bulletins', 'Document', 6, 1),
   (12, NULL, '首页管理', '/home-pages', 'HomeFilled', 7, 1),
   (13, NULL, '密码管理', '/passwords', 'Key', 8, 1),

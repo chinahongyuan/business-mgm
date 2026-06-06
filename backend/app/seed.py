@@ -9,23 +9,48 @@ from app.models.product import ProductCategory
 
 
 def ensure_announcement_menu_title() -> None:
-    """将侧栏原「公告管理」路径菜单名同步为「娱乐指南管理」（已有库升级）。"""
+    """侧栏 /announcements 菜单名同步为「娱乐指南」（已有库升级）。"""
     row = Menu.query.filter_by(path="/announcements").first()
-    if row and row.title != "娱乐指南管理":
-        row.title = "娱乐指南管理"
+    if row and row.title != "娱乐指南":
+        row.title = "娱乐指南"
         db.session.commit()
 
 
+def _shift_root_menu_sort(from_order: int, to_order: int, delta: int, *, exclude_path: str | None = None) -> None:
+    """调整顶级菜单 sort_order（exclude_path 不参与位移）。"""
+    q = Menu.query.filter(Menu.parent_id.is_(None), Menu.sort_order >= from_order, Menu.sort_order <= to_order)
+    if exclude_path:
+        q = q.filter(Menu.path != exclude_path)
+    for m in q.all():
+        m.sort_order += delta
+
+
 def ensure_bulletin_menu() -> None:
-    """保证侧栏存在「公告管理」菜单（/bulletins），并授权给 id=1 管理员。"""
-    if Menu.query.filter_by(path="/bulletins").first():
+    """保证侧栏存在「公告管理」菜单（/bulletins，紧挨娱乐指南），并授权给 id=1 管理员。"""
+    existing = Menu.query.filter_by(path="/bulletins").first()
+    if existing:
+        changed = False
+        if existing.title != "公告管理":
+            existing.title = "公告管理"
+            changed = True
+        if existing.sort_order != 6:
+            old = existing.sort_order
+            if old > 6:
+                _shift_root_menu_sort(6, old - 1, 1, exclude_path="/bulletins")
+            elif old < 6:
+                _shift_root_menu_sort(old + 1, 6, -1, exclude_path="/bulletins")
+            existing.sort_order = 6
+            changed = True
+        if changed:
+            db.session.commit()
         return
+    _shift_root_menu_sort(6, 99, 1)
     m = Menu(
         parent_id=None,
         title="公告管理",
         path="/bulletins",
         icon="Document",
-        sort_order=8,
+        sort_order=6,
         is_active=True,
     )
     db.session.add(m)
@@ -146,7 +171,7 @@ def seed_database() -> None:
 
     for title, path, order, icon in [
         ("留言板", "/message-boards", 4, "ChatDotRound"),
-        ("娱乐指南管理", "/announcements", 5, "Bell"),
+        ("娱乐指南", "/announcements", 5, "Bell"),
         ("公告管理", "/bulletins", 6, "Document"),
         ("首页管理", "/home-pages", 7, "HomeFilled"),
         ("密码管理", "/passwords", 8, "Key"),

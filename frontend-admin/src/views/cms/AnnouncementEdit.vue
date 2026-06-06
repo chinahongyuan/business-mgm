@@ -3,7 +3,7 @@
     <el-card v-loading="loading" class="panel" shadow="never">
       <template #header>
         <div class="card-head">
-          <span class="toolbar-title">娱乐指南管理</span>
+          <span class="toolbar-title">娱乐指南</span>
           <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
         </div>
       </template>
