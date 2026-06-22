@@ -266,6 +266,10 @@ watch([() => detail.value?.name, mobileTitle], () => applyDocumentTitle());
 
 function goBack() {
   restoreListDocumentTitle();
+  if (route.query.from === "history") {
+    void router.push({ name: "product-history" });
+    return;
+  }
   void router.push({ name: "products" });
 }
 

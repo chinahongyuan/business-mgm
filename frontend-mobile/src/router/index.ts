@@ -22,6 +22,12 @@ export const router = createRouter({
       meta: { title: "商品", requiresAuth: true },
     },
     {
+      path: "/products/history",
+      name: "product-history",
+      component: () => import("@/views/ProductHistoryView.vue"),
+      meta: { title: "浏览历史", requiresAuth: true },
+    },
+    {
       path: "/products/:id",
       name: "product-detail",
       component: () => import("@/views/ProductDetailView.vue"),
@@ -34,8 +40,8 @@ export const router = createRouter({
     },
   ],
   scrollBehavior(to, from) {
-    // 从详情返回列表：不强制滚顶，由列表页 onActivated 恢复位置
-    if (to.name === "products" && from?.name === "product-detail") {
+    // 从详情或历史返回列表：不强制滚顶，由列表页 onActivated 恢复位置
+    if (to.name === "products" && (from?.name === "product-detail" || from?.name === "product-history")) {
       return false;
     }
     return { top: 0 };

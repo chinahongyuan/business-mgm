@@ -760,6 +760,53 @@ def mobile_product_detail(pid: int):
     )
 
 
+@bp.get("/mobile/product-history")
+def mobile_product_history():
+    """当前用户浏览过的商品（去重，按最近查看时间倒序；已下架/已删除不返回）。"""
+    visitor_key = (request.args.get("visitorKey") or "").strip()
+    auth = _auth_mobile_visitor(visitor_key)
+    if isinstance(auth, tuple):
+        return auth
+    u = auth
+
+    page = max(int(request.args.get("page") or 1), 1)
+    page_size = min(max(int(request.args.get("pageSize") or 20), 1), 50)
+
+    viewed = (
+        db.session.query(
+            MobileVisitLog.product_id.label("product_id"),
+            func.max(MobileVisitLog.created_at).label("viewed_at"),
+        )
+        .filter(
+            MobileVisitLog.mobile_user_id == u.id,
+            MobileVisitLog.event_type == "product_view",
+            MobileVisitLog.product_id.isnot(None),
+        )
+        .group_by(MobileVisitLog.product_id)
+        .subquery()
+    )
+
+    q = (
+        db.session.query(Product, viewed.c.viewed_at)
+        .join(viewed, Product.id == viewed.c.product_id)
+        .options(selectinload(Product.category), selectinload(Product.tags))
+        .filter(Product.deleted_at.is_(None), Product.flag3.is_(True))
+        .order_by(viewed.c.viewed_at.desc())
+    )
+
+    total = q.count()
+    rows = q.offset((page - 1) * page_size).limit(page_size).all()
+
+    items = []
+    for p, viewed_at in rows:
+        d = _serialize_product_mobile(p)
+        d["viewedAt"] = isoformat_utc(viewed_at)
+        items.append(d)
+    _attach_hot_review_flags(items)
+
+    return jsonify({"data": {"items": items, "total": total, "page": page, "pageSize": page_size}})
+
+
 @bp.post("/mobile/product-messages")
 def submit_product_message():
     """移动端提交评价：需 visitorKey；审核为待审批。"""

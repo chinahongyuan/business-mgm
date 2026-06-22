@@ -28,6 +28,10 @@
             @keyup.enter="reload"
           />
         </div>
+        <button type="button" class="plist__historyBtn" aria-label="浏览历史" @click="goHistory">
+          <MobileIcon name="history" size="sm" />
+          <span class="plist__historyLbl">历史</span>
+        </button>
         <button type="button" class="plist__searchBtn" @click="reload">搜索</button>
       </div>
 
@@ -418,6 +422,18 @@
       </template>
     </div>
 
+    <Transition name="plist-top-fade">
+      <button
+        v-show="showBackToTop"
+        type="button"
+        class="fab-top"
+        aria-label="回到顶部"
+        @click="scrollToTop"
+      >
+        <span class="fab-top__bar" aria-hidden="true" />
+        <span class="fab-top__label">回到顶部</span>
+      </button>
+    </Transition>
     <button
       v-if="showBulletinFab"
       type="button"
@@ -495,12 +511,39 @@ const PLIST_FOCUS_ROW_VTOP_KEY = "bmgm_plist_focus_row_vtop";
 const PLIST_SCROLL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** 懒加载等因素导致布局后继续微调；次数少，避免与其它逻辑抢滚动 */
 const PLIST_ANCHOR_RECHECK_MS = [100, 280] as const;
+const BACK_TO_TOP_THRESHOLD = 400;
+
+const showBackToTop = ref(false);
 
 function getWindowScrollY(): number {
   if (typeof window === "undefined") return 0;
   const d = typeof document !== "undefined" ? document.documentElement?.scrollTop : undefined;
   const b = typeof document !== "undefined" ? document.body?.scrollTop : undefined;
   return window.scrollY ?? window.pageYOffset ?? d ?? b ?? 0;
+}
+
+function onWindowScroll() {
+  showBackToTop.value = getWindowScrollY() > BACK_TO_TOP_THRESHOLD;
+}
+
+function bindScrollListener() {
+  if (typeof window === "undefined") return;
+  window.addEventListener("scroll", onWindowScroll, { passive: true });
+  onWindowScroll();
+}
+
+function unbindScrollListener() {
+  if (typeof window === "undefined") return;
+  window.removeEventListener("scroll", onWindowScroll);
+}
+
+function scrollToTop() {
+  if (typeof window === "undefined") return;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function goHistory() {
+  void router.push({ name: "product-history" });
 }
 
 /** 满足 elementTop = savedViewportTop ⇒ scrollTop = docY − savedViewportTop（docY 为行顶相对于文档的布局坐标近似值） */
@@ -1242,14 +1285,17 @@ watch(
 );
 
 onBeforeRouteLeave((to) => {
-  if (to.name === "product-detail") {
+  if (to.name === "product-detail" || to.name === "product-history") {
     saveScrollPosition();
-    saveFilters();
+    if (to.name === "product-detail") {
+      saveFilters();
+    }
   }
 });
 
 onActivated(() => {
   void loadListTitle().catch(() => {});
+  bindScrollListener();
   void nextTick(() => {
     setupInfiniteScroll();
     restoreScrollPosition();
@@ -1257,11 +1303,13 @@ onActivated(() => {
 });
 
 onDeactivated(() => {
+  unbindScrollListener();
   scrollObserver?.disconnect();
   scrollObserver = null;
 });
 
 onMounted(async () => {
+  bindScrollListener();
   restoreFilters();
   loading.value = true;
   try {
@@ -1285,6 +1333,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  unbindScrollListener();
   if (loadMetaTimer) {
     clearTimeout(loadMetaTimer);
     loadMetaTimer = null;
@@ -1377,7 +1426,7 @@ watch(city, () => {
 
 .plist__searchBtn {
   flex-shrink: 0;
-  padding: 12px 18px;
+  padding: 12px 16px;
   border: none;
   border-radius: 12px;
   background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
@@ -1385,6 +1434,30 @@ watch(city, () => {
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+  min-height: 44px;
+}
+
+.plist__historyBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 12px;
+  min-height: 44px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0369a1;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  touch-action: manipulation;
+}
+
+.plist__historyLbl {
+  line-height: 1;
 }
 
 /* 已选条件：横向滚动芯片 + 清空（解决手风琴收起后「忘了选了啥」） */
@@ -2290,6 +2363,94 @@ watch(city, () => {
   --fab-stack: calc(56px + 10px);
 }
 
+/* 回到顶部：左下胶囊，毛玻璃 + 色条点缀（与右侧方形内容浮标区分） */
+.fab-top {
+  position: fixed;
+  left: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 18px 0 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(241, 245, 249, 0.9) 48%,
+    rgba(224, 242, 254, 0.82) 100%
+  );
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  color: #0c4a6e;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(148, 163, 184, 0.08),
+    0 2px 6px rgba(15, 23, 42, 0.05),
+    0 10px 28px rgba(14, 165, 233, 0.16);
+  transition:
+    transform 0.2s cubic-bezier(0.33, 1, 0.68, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.fab-top:active {
+  transform: scale(0.97);
+}
+
+.fab-top:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 3px;
+}
+
+.fab-top__bar {
+  flex-shrink: 0;
+  width: 3px;
+  height: 20px;
+  border-radius: 3px;
+  background: linear-gradient(0deg, #0284c7 0%, #0ea5e9 45%, #7dd3fc 100%);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+.fab-top__label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.plist-top-fade-enter-active,
+.plist-top-fade-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.plist-top-fade-enter-from,
+.plist-top-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plist-top-fade-enter-active,
+  .plist-top-fade-leave-active {
+    transition: opacity 0.15s ease;
+  }
+
+  .plist-top-fade-enter-from,
+  .plist-top-fade-leave-to {
+    transform: none;
+  }
+}
+
 /* —— 宽屏：与后台一致的视口断点；列表双列 + 桌面 hover，不改动窄屏单列 —— */
 @media (min-width: 1024px) {
   .plist {
@@ -2454,6 +2615,21 @@ watch(city, () => {
 
   .plist__searchBtn:hover {
     filter: brightness(1.03);
+  }
+
+  .plist__historyBtn:hover {
+    border-color: rgba(14, 165, 233, 0.45);
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.12);
+  }
+
+  .fab-top:hover {
+    border-color: rgba(14, 165, 233, 0.42);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      inset 0 -1px 0 rgba(148, 163, 184, 0.06),
+      0 4px 12px rgba(15, 23, 42, 0.06),
+      0 14px 32px rgba(14, 165, 233, 0.22);
   }
 
   .filterSeg__btn:hover:not(.filterSeg__btn--on) {

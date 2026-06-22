@@ -81,6 +81,13 @@
         d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
       />
     </template>
+    <template v-else-if="name === 'history'">
+      <path d="M12 8v4l3 3" />
+      <circle cx="12" cy="12" r="9" />
+    </template>
+    <template v-else-if="name === 'arrowUp'">
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </template>
   </svg>
 </template>
 
@@ -99,6 +106,8 @@ const props = withDefaults(
       | "sort"
       | "moon"
       | "sun"
+      | "history"
+      | "arrowUp"
       | "fireFill"
       | "starFill"
       | "chatFill";
