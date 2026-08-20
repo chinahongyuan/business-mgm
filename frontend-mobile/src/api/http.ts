@@ -19,7 +19,7 @@ http.interceptors.response.use(
   (res) => res,
   (err: unknown) => {
     const ax = err as {
-      response?: { status?: number; data?: { message?: string } };
+      response?: { status?: number; data?: { code?: string; message?: string } };
       config?: { url?: string };
       message?: string;
     };
@@ -28,10 +28,18 @@ http.interceptors.response.use(
     if (status === 401 && url.includes("/mobile/login")) {
       return Promise.reject(new Error("密码错误"));
     }
-    if (status === 401 && /\/mobile\//.test(url) && !/\/mobile\/login/.test(url)) {
+    if (
+      status === 401 &&
+      ax?.response?.data?.code === "MOBILE_SESSION_INVALID" &&
+      /\/mobile\//.test(url) &&
+      !/\/mobile\/login/.test(url)
+    ) {
       try {
         const session = useSessionStore();
         session.logout();
+        if (typeof sessionStorage !== "undefined") {
+          sessionStorage.clear();
+        }
       } catch {
         /* Pinia 未就绪时忽略 */
       }

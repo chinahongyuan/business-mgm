@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, send_from_directory
+from flask import Flask, make_response, request, send_from_directory
 from flask_cors import CORS
 
 from app.config import CONFIG, validate_pymysql_database_uri
@@ -20,6 +20,36 @@ def _mobile_static_dir() -> str:
     return mobile_static_dir()
 
 
+def initialize_database() -> None:
+    """Create model tables before running compatibility schema repairs.
+
+    Some legacy ``ensure_*`` functions create one table directly.  They must
+    run after the full metadata has been created, otherwise MySQL can reject a
+    child table whose referenced parent table does not exist yet.
+    """
+    from flask import current_app
+
+    from app.db_indexes import ensure_p0_indexes
+    from app.schema_mobile_visit_log import ensure_mobile_visit_log
+    from app.schema_cms_bulletin import ensure_cms_bulletin
+    from app.schema_cms_home_mobile_title import ensure_cms_home_mobile_title
+    from app.schema_password_expires_nullable import ensure_app_mobile_login_password_expires_nullable
+    from app.schema_soft_delete import ensure_mer_product_deleted_at
+
+    db.create_all()
+    ensure_functions = (
+        ensure_mobile_visit_log,
+        ensure_cms_bulletin,
+        ensure_mer_product_deleted_at,
+        ensure_cms_home_mobile_title,
+        ensure_app_mobile_login_password_expires_nullable,
+        ensure_p0_indexes,
+    )
+    for ensure_function in ensure_functions:
+        for line in ensure_function():
+            current_app.logger.debug(line)
+
+
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, static_folder=None)
 
@@ -35,17 +65,16 @@ def create_app(config_name: str | None = None) -> Flask:
     # API may be called from same origin; keep CORS loose for LAN debugging
     CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
+    @app.after_request
+    def _disable_api_cache(response):
+        return disable_api_cache(response)
+
     db.init_app(app)
 
     with app.app_context():
-        from app.schema_mobile_visit_log import ensure_mobile_visit_log
-        from app.schema_cms_bulletin import ensure_cms_bulletin
         from app.seed import ensure_announcement_menu_title, ensure_bulletin_menu, ensure_cms_bulletin_row
 
-        for line in ensure_mobile_visit_log():
-            app.logger.debug(line)
-        for line in ensure_cms_bulletin():
-            app.logger.debug(line)
+        initialize_database()
         try:
             ensure_cms_bulletin_row()
             ensure_announcement_menu_title()
@@ -180,7 +209,7 @@ def _register_spa_routes(app: Flask) -> None:
         index = os.path.join(admin_root, "index.html")
         if not os.path.isfile(index):
             return _missing_admin_ui_message()
-        return send_from_directory(admin_root, "index.html")
+        return _send_spa_index(admin_root)
 
     @app.get("/system-management/<path:path>")
     def admin_spa_assets(path: str):
@@ -190,14 +219,14 @@ def _register_spa_routes(app: Flask) -> None:
         index = os.path.join(admin_root, "index.html")
         if not os.path.isfile(index):
             return _missing_admin_ui_message()
-        return send_from_directory(admin_root, "index.html")
+        return _send_spa_index(admin_root)
 
     @app.get("/")
     def mobile_spa_index():
         index = os.path.join(mobile_root, "index.html")
         if not os.path.isfile(index):
             return _missing_mobile_ui_message()
-        return send_from_directory(mobile_root, "index.html")
+        return _send_spa_index(mobile_root)
 
     @app.get("/<path:path>")
     def mobile_spa_or_assets(path: str):
@@ -217,7 +246,25 @@ def _register_spa_routes(app: Flask) -> None:
         index = os.path.join(mobile_root, "index.html")
         if not os.path.isfile(index):
             return _missing_mobile_ui_message()
-        return send_from_directory(mobile_root, "index.html")
+        return _send_spa_index(mobile_root)
+
+
+def disable_api_cache(response):
+    """Prevent browsers and reverse proxies from caching API state."""
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
+def _send_spa_index(static_root: str):
+    """Serve the SPA entrypoint uncached; hashed assets remain cacheable."""
+    response = make_response(send_from_directory(static_root, "index.html"))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 def _missing_admin_ui_message():

@@ -40,6 +40,16 @@ MOBILE_SESSION_EXPIRED_MSG = "登录已过期，请重新输入密码"
 MOBILE_HEARTBEAT_MIN_INTERVAL_SEC = 45.0
 
 
+def _mobile_session_error(message: str = "登录已失效，请重新登录"):
+    """Return one stable response for every invalid mobile session."""
+    return jsonify({"code": "MOBILE_SESSION_INVALID", "message": message}), 401
+
+
+def _login_visitor_key() -> str:
+    """Never resurrect a visitor key that is no longer present in the database."""
+    return secrets.token_hex(16)
+
+
 def _mobile_password_session_expired(u: MobileUser) -> bool:
     t = u.last_login_at
     if t is None:
@@ -53,14 +63,14 @@ def _auth_mobile_visitor(visitor_key: str):
     成功返回 MobileUser；失败返回 (jsonify(...), http_status) 元组。
     """
     if not visitor_key or len(visitor_key) < 8:
-        return jsonify({"message": "visitorKey 无效"}), 400
+        return _mobile_session_error()
     u = MobileUser.query.filter_by(visitor_key=visitor_key).first()
     if not u:
-        return jsonify({"message": "用户不存在"}), 404
+        return _mobile_session_error()
     if u.status == "disabled":
-        return jsonify({"message": "账号已禁用"}), 403
+        return _mobile_session_error("账号已被禁用，请重新登录")
     if _mobile_password_session_expired(u):
-        return jsonify({"message": MOBILE_SESSION_EXPIRED_MSG}), 401
+        return _mobile_session_error(MOBILE_SESSION_EXPIRED_MSG)
     return u
 
 
@@ -411,7 +421,7 @@ def mobile_login():
         u = None
 
     if not u:
-        vk = vk_in if (vk_in and len(vk_in) >= 8) else secrets.token_hex(16)
+        vk = _login_visitor_key()
         u = MobileUser(
             visitor_key=vk,
             ip=ip,

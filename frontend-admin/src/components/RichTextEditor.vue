@@ -40,7 +40,7 @@ import { http } from "@/api/http";
 import "ckeditor5/ckeditor5.css";
 import "ckeditor5/ckeditor5-content.css";
 
-const props = defineProps<{ modelValue: string }>();
+const props = defineProps<{ modelValue: string; productName?: string }>();
 const emit = defineEmits<{ "update:modelValue": [v: string] }>();
 
 const html = ref(props.modelValue || "");
@@ -62,6 +62,7 @@ function uploadAdapterPlugin(editor: Editor) {
           new Promise<{ default: string }>((resolve, reject) => {
             const fd = new FormData();
             fd.append("file", file as File);
+            if (props.productName?.trim()) fd.append("productName", props.productName.trim());
             http
               .post<{ data: { url: string } }>("/upload", fd, {
                 headers: { "Content-Type": "multipart/form-data" },
@@ -152,6 +153,7 @@ function batchUploadImagesPlugin(editor: Editor) {
               }
               const fd = new FormData();
               fd.append("file", file);
+              if (props.productName?.trim()) fd.append("productName", props.productName.trim());
               const res = await http.post<{ data: { url: string } }>("/upload", fd, {
                 headers: { "Content-Type": "multipart/form-data" },
               });
@@ -226,6 +228,7 @@ function batchUploadVideosPlugin(editor: Editor) {
               }
               const fd = new FormData();
               fd.append("file", file);
+              if (props.productName?.trim()) fd.append("productName", props.productName.trim());
               const res = await http.post<{ data: { url: string } }>("/upload", fd, {
                 headers: { "Content-Type": "multipart/form-data" },
               });

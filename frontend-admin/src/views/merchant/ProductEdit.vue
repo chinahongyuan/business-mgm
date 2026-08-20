@@ -185,7 +185,7 @@
         <section class="form-section">
           <h3 class="form-section-title">商品详情</h3>
           <el-form-item label="商品详情" class="form-item-detail">
-            <RichTextEditor v-model="form.detailHtml" class="editor-block" />
+            <RichTextEditor v-model="form.detailHtml" :product-name="form.name" class="editor-block" />
           </el-form-item>
         </section>
 
@@ -357,6 +357,7 @@ async function loadProduct() {
 async function onCoverUpload(opt: UploadRequestOptions) {
   const fd = new FormData();
   fd.append("file", opt.file);
+  if (form.name.trim()) fd.append("productName", form.name.trim());
   const { data } = await http.post<{ data: { url: string } }>("/upload", fd, {
     headers: { "Content-Type": "multipart/form-data" },
   });

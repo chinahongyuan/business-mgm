@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
 import uuid
-from datetime import datetime
+from urllib.parse import quote
 
 from flask import current_app, jsonify, request
 from werkzeug.utils import secure_filename
@@ -31,6 +32,21 @@ def _allowed(name: str) -> bool:
     }
 
 
+def upload_subdirectory(product_name: str | None) -> str:
+    """Return one safe directory segment for a product upload."""
+    name = (product_name or "").strip()
+    if not name:
+        return "general"
+
+    # Keep human-readable names, but turn separators, control characters and
+    # Windows-invalid filename characters into ordinary underscores.
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', "_", name)
+    name = name.strip(" .")
+    if not name:
+        return "general"
+    return name[:100]
+
+
 @bp.post("/upload")
 @require_auth
 def upload_file():
@@ -44,12 +60,12 @@ def upload_file():
     if not raw or not _allowed(raw):
         return jsonify({"message": "不支持的文件类型"}), 400
     ext = os.path.splitext(raw)[1].lower()
-    sub = datetime.utcnow().strftime("%Y%m")
-    rel_dir = os.path.join(sub)
+    product_name = request.form.get("productName")
+    rel_dir = upload_subdirectory(product_name)
     dest_dir = os.path.join(_upload_dir(), rel_dir)
     os.makedirs(dest_dir, exist_ok=True)
     new_name = f"{uuid.uuid4().hex}{ext}"
     path = os.path.join(dest_dir, new_name)
     f.save(path)
-    url = f"/uploads/{rel_dir.replace(os.sep, '/')}/{new_name}"
+    url = f"/uploads/{quote(rel_dir, safe='')}/{new_name}"
     return jsonify({"data": {"url": url, "name": new_name}})
