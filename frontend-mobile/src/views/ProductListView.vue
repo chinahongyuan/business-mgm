@@ -144,7 +144,7 @@
                   class="filterAcc__head"
                   :class="{ 'filterAcc__head--active': !!district.trim() }"
                   :aria-expanded="openFilterPanel === 'district'"
-                  @click="toggleFilterPanel('district')"
+                  @click="onDistrictPanelClick"
                 >
                   <span class="filterDeck__dot filterDeck__dot--cyan" aria-hidden="true" />
                   <span class="filterAcc__title">区域</span>
@@ -476,6 +476,7 @@ import StarRating from "@/components/StarRating.vue";
 import { useSessionStore } from "@/stores/session";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { withRetries } from "@/utils/withRetries";
+import { canOpenDistrictFilter } from "@/utils/productFilter";
 
 type ProductRow = {
   id: number;
@@ -740,6 +741,15 @@ const openFilterPanel = ref<FilterPanelId | null>("city");
 
 function toggleFilterPanel(id: FilterPanelId) {
   openFilterPanel.value = openFilterPanel.value === id ? null : id;
+}
+
+function onDistrictPanelClick() {
+  if (!canOpenDistrictFilter(city.value)) {
+    openFilterPanel.value = "city";
+    window.alert("请先选择城市后再选择区域。");
+    return;
+  }
+  toggleFilterPanel("district");
 }
 
 const hasMore = computed(() => items.value.length < total.value);
