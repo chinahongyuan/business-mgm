@@ -1,6 +1,9 @@
-import axios from "axios";
+import axios, { type InternalAxiosRequestConfig } from "axios";
 
+import { MOBILE_SESSION_INVALID, shouldInvalidateMobileSession } from "@/api/sessionEpoch";
 import { useSessionStore } from "@/stores/session";
+
+type SessionConfig = InternalAxiosRequestConfig & { sessionGeneration?: number };
 
 export const http = axios.create({
   baseURL: "/api",
@@ -12,15 +15,26 @@ http.interceptors.request.use((config) => {
   const h = (config.headers ||= {}) as Record<string, string>;
   h["Cache-Control"] = "no-store";
   h["Pragma"] = "no-cache";
+  try {
+    (config as SessionConfig).sessionGeneration = useSessionStore().sessionGeneration;
+  } catch {
+    /* Pinia 未就绪时忽略 */
+  }
   return config;
 });
+
+function rejectSessionInvalid(message: string): Promise<never> {
+  const err = new Error(message);
+  (err as Error & { code: string }).code = MOBILE_SESSION_INVALID;
+  return Promise.reject(err);
+}
 
 http.interceptors.response.use(
   (res) => res,
   (err: unknown) => {
     const ax = err as {
       response?: { status?: number; data?: { code?: string; message?: string } };
-      config?: { url?: string };
+      config?: SessionConfig;
       message?: string;
     };
     const status = ax?.response?.status;
@@ -30,24 +44,30 @@ http.interceptors.response.use(
     }
     if (
       status === 401 &&
-      ax?.response?.data?.code === "MOBILE_SESSION_INVALID" &&
+      ax?.response?.data?.code === MOBILE_SESSION_INVALID &&
       /\/mobile\//.test(url) &&
       !/\/mobile\/login/.test(url)
     ) {
+      const rawMessage = ax.response?.data?.message;
+      const message =
+        typeof rawMessage === "string" && rawMessage.trim() ? rawMessage.trim() : "登录已失效，请重新登录";
       try {
         const session = useSessionStore();
-        session.logout();
-        if (typeof sessionStorage !== "undefined") {
-          sessionStorage.clear();
+        if (shouldInvalidateMobileSession(ax.config?.sessionGeneration, session.sessionGeneration)) {
+          session.logout();
+          if (typeof sessionStorage !== "undefined") {
+            sessionStorage.clear();
+          }
+          void import("@/router").then(({ router }) => {
+            if (router.currentRoute.value.meta.requiresAuth) {
+              void router.replace({ path: "/" });
+            }
+          });
         }
       } catch {
         /* Pinia 未就绪时忽略 */
       }
-      void import("@/router").then(({ router }) => {
-        if (router.currentRoute.value.meta.requiresAuth) {
-          void router.replace({ path: "/" });
-        }
-      });
+      return rejectSessionInvalid(message);
     }
     const msg = ax?.response?.data?.message;
     if (typeof msg === "string" && msg.trim()) {

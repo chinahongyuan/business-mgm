@@ -726,6 +726,13 @@ function debouncedLoadMeta() {
 const announcementHtml = ref("");
 const bulletinHtml = ref("");
 const showBulletinModal = ref(false);
+/** keep-alive 停用后，异步回调不得再把 Teleport 弹层挂回 body */
+let viewActive = false;
+
+function closeTeleportedModals() {
+  showAnnSimple.value = false;
+  showBulletinModal.value = false;
+}
 
 const sentinelRef = ref<HTMLElement | null>(null);
 let scrollObserver: IntersectionObserver | null = null;
@@ -1079,10 +1086,9 @@ async function refreshBulletinFab() {
 
 async function openBulletin() {
   const { published, html } = await loadBulletin(true);
-  if (published && html) {
-    bulletinHtml.value = html;
-    showBulletinModal.value = true;
-  }
+  if (!viewActive || !(published && html)) return;
+  bulletinHtml.value = html;
+  showBulletinModal.value = true;
 }
 
 async function loadAnnouncement(recordView: boolean): Promise<{ published: boolean; html: string }> {
@@ -1116,7 +1122,7 @@ async function loadAnnouncement(recordView: boolean): Promise<{ published: boole
  * 仅已登录用户可查看公告，未登录时跳过。
  */
 async function runListAnnouncement() {
-  if (!session.isLoggedIn()) {
+  if (!viewActive || !session.isLoggedIn()) {
     showAnnFab.value = false;
     announcementHtml.value = "";
     return;
@@ -1126,10 +1132,12 @@ async function runListAnnouncement() {
   if (skip) {
     sessionStorage.removeItem("bmgm_skip_list_ann");
     const { published, html } = await loadAnnouncement(false);
+    if (!viewActive) return;
     showAnnFab.value = published && !!html;
     return;
   }
   const { published, html } = await loadAnnouncement(true);
+  if (!viewActive || !session.isLoggedIn()) return;
   showAnnFab.value = published && !!html;
   if (published && html) {
     let fromLogin = false;
@@ -1150,10 +1158,9 @@ async function runListAnnouncement() {
 
 async function openAnnSimple() {
   const { published, html } = await loadAnnouncement(false);
-  if (published && html) {
-    annModalMode.value = "simple";
-    showAnnSimple.value = true;
-  }
+  if (!viewActive || !(published && html)) return;
+  annModalMode.value = "simple";
+  showAnnSimple.value = true;
 }
 
 async function loadProducts(append: boolean) {
@@ -1304,6 +1311,7 @@ onBeforeRouteLeave((to) => {
 });
 
 onActivated(() => {
+  viewActive = true;
   void loadListTitle().catch(() => {});
   bindScrollListener();
   void nextTick(() => {
@@ -1313,12 +1321,15 @@ onActivated(() => {
 });
 
 onDeactivated(() => {
+  viewActive = false;
+  closeTeleportedModals();
   unbindScrollListener();
   scrollObserver?.disconnect();
   scrollObserver = null;
 });
 
 onMounted(async () => {
+  viewActive = true;
   bindScrollListener();
   restoreFilters();
   loading.value = true;
@@ -1343,6 +1354,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  viewActive = false;
+  closeTeleportedModals();
   unbindScrollListener();
   if (loadMetaTimer) {
     clearTimeout(loadMetaTimer);
