@@ -7,9 +7,8 @@
         <button type="button" class="pd__back" @click="goBack">← 返回</button>
       </header>
 
-      <div v-if="loading" class="pd__loading">
-        <span class="pd__spinner" />
-        加载中…
+      <div v-if="loading" class="pd__skeleton" role="status" aria-label="加载商品中" aria-busy="true">
+        <div class="pd__skeletonTitle" /><div class="pd__skeletonLine" /><div class="pd__skeletonMedia" />
       </div>
 
       <template v-else-if="detail">
@@ -33,7 +32,7 @@
           </div>
           <p class="pd__addr">
             <MobileIcon name="mapPin" size="sm" class="pd__addrIcon" />
-            <span>{{ detail.address || "—" }}</span>
+            <span>{{ detail.address || "暂无地址" }}</span>
           </p>
           <div v-if="detail.tagNames?.length" class="pd__tags">
             <span v-for="t in detail.tagNames" :key="t" class="tagpill">{{ t }}</span>
@@ -70,7 +69,10 @@
           </div>
 
           <div v-if="reviewsLoading" class="pd__reviewsHint">加载评价中…</div>
-          <div v-else-if="!reviews.length" class="pd__reviewsEmpty">暂无评价，欢迎发表第一条～</div>
+          <div v-else-if="reviewsError" class="pd__reviewsHint">
+            评价加载失败 <button type="button" class="pd__retry" @click="retryReviews">重试</button>
+          </div>
+          <div v-else-if="!reviews.length" class="pd__reviewsEmpty">暂无评价</div>
           <ul v-else class="pd__reviewList">
             <li v-for="r in reviews" :key="r.id" class="pd__review">
               <div class="pd__reviewAvatar" aria-hidden="true">
@@ -121,7 +123,10 @@
         </section>
       </template>
 
-      <div v-else class="pd__empty">商品不存在或已下架</div>
+      <div v-else class="pd__empty">
+        {{ detailError || '商品不存在或已下架' }}
+        <button v-if="detailError" type="button" class="pd__retry" @click="loadProductPage(Number(route.params.id))">重新加载</button>
+      </div>
     </div>
 
     <Teleport to="body">
@@ -150,12 +155,17 @@ import StarRating from "@/components/StarRating.vue";
 import { useSessionStore } from "@/stores/session";
 import { attachDetailImageClicks, attachExclusiveVideoPlayback, enhanceDetailHtml } from "@/utils/detailHtml";
 import { formatDateTimeZh } from "@/utils/formatDateTime";
+import { attachDeferredMedia } from "@/utils/detailMedia";
+import type { MediaMap } from "@/utils/media";
 
 const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
 
 const loading = ref(true);
+const detailError = ref("");
+let requestGeneration = 0;
+let pageRequest: AbortController | null = null;
 const htmlRoot = ref<HTMLElement | null>(null);
 let detachDetailMedia: () => void = () => {};
 
@@ -192,17 +202,19 @@ const detail = ref<{
   hot?: boolean;
   recommend?: boolean;
   detailHtml?: string;
+  detailMedia?: MediaMap;
 } | null>(null);
 
 type ReviewRow = { id: number; content: string; displayName: string; createdAt: string };
 const reviews = ref<ReviewRow[]>([]);
 const reviewsLoading = ref(false);
+const reviewsError = ref(false);
 const reviewDraft = ref("");
 const submitting = ref(false);
 const submitTip = ref("");
 const submitOk = ref(false);
 
-const safeHtml = computed(() => enhanceDetailHtml(detail.value?.detailHtml || ""));
+const safeHtml = computed(() => enhanceDetailHtml(detail.value?.detailHtml || "", detail.value?.detailMedia));
 
 function priceParts(n: number) {
   const s = Number(n).toFixed(2);
@@ -234,7 +246,7 @@ function restoreListDocumentTitle() {
 }
 
 watch(
-  safeHtml,
+  [htmlRoot, safeHtml],
   async () => {
     await nextTick();
     detachDetailMedia();
@@ -242,9 +254,11 @@ watch(
     if (htmlRoot.value && safeHtml.value) {
       const d1 = attachExclusiveVideoPlayback(htmlRoot.value);
       const d2 = attachDetailImageClicks(htmlRoot.value, (url) => openLightbox(url));
+      const d3 = attachDeferredMedia(htmlRoot.value);
       detachDetailMedia = () => {
         d1();
         d2();
+        d3();
       };
     }
   },
@@ -283,64 +297,60 @@ onBeforeRouteLeave((to) => {
 });
 
 async function loadProductPage(productId: number) {
+  pageRequest?.abort();
+  pageRequest = new AbortController();
+  const signal = pageRequest.signal;
+  const generation = ++requestGeneration;
   loading.value = true;
+  detailError.value = "";
   detail.value = null;
   reviews.value = [];
+  reviewsError.value = false;
+  reviewsLoading.value = true;
   submitTip.value = "";
   document.title = mobileTitle.value.trim() || "商品详情";
 
-  try {
-    const [homeRes, detailRes] = await Promise.all([
-      http.get<{ data: { mobileTitle?: string } }>("/mobile/home-page").catch(() => ({ data: {} })),
-      http.get<{
-        data: {
-          id: number;
-          name: string;
-          coverImage?: string | null;
-          status: string;
-          price: number;
-          starRating: number;
-          address?: string | null;
-          tagNames?: string[];
-          hasHotReview?: boolean;
-          hot?: boolean;
-          recommend?: boolean;
-          detailHtml?: string;
-        };
-      }>(`/mobile/products/${productId}`, { params: { visitorKey: session.visitorKey } }),
-    ]);
-
-    const mt = (homeRes.data?.data?.mobileTitle || "").trim();
-    mobileTitle.value = mt;
-
-    const d = detailRes.data?.data;
-    if (!d) {
-      detail.value = null;
-      return;
-    }
-    detail.value = d;
+  // Configuration and reviews never hold the product or its first image behind a spinner.
+  void http.get<{ data: { mobileTitle?: string } }>("/mobile/home-page", { signal }).then((res) => {
+    if (generation !== requestGeneration) return;
+    mobileTitle.value = (res.data?.data?.mobileTitle || "").trim();
     applyDocumentTitle();
+  }).catch(() => {});
 
-    reviewsLoading.value = true;
-    try {
-      const msgRes = await http.get<{ data: { items: ReviewRow[] } }>(`/mobile/products/${productId}/messages`);
-      const items = msgRes.data?.data?.items || [];
-      reviews.value = items.map((it) => ({
-        id: it.id,
-        content: it.content,
-        displayName: it.displayName || `游客${String(it.id % 10000).padStart(4, "0")}`,
-        createdAt: it.createdAt,
-      }));
-    } catch {
-      reviews.value = [];
-    } finally {
-      reviewsLoading.value = false;
-    }
-  } catch {
-    detail.value = null;
+  try {
+    const res = await http.get<{ data: NonNullable<typeof detail.value> }>(`/mobile/products/${productId}`, {
+      params: { visitorKey: session.visitorKey }, signal,
+    });
+    if (generation !== requestGeneration) return;
+    detail.value = res.data?.data || null;
+    applyDocumentTitle();
+    if (detail.value) void loadReviews(productId, generation, signal);
+  } catch (error) {
+    if (generation !== requestGeneration) return;
+    detailError.value = error instanceof Error ? error.message : "商品加载失败";
   } finally {
-    loading.value = false;
+    if (generation === requestGeneration) loading.value = false;
   }
+}
+
+async function loadReviews(productId: number, generation: number, signal?: AbortSignal) {
+  reviewsLoading.value = true;
+  reviewsError.value = false;
+  try {
+    const res = await http.get<{ data: { items: ReviewRow[] } }>(`/mobile/products/${productId}/messages`, { signal });
+    if (generation !== requestGeneration) return;
+    reviews.value = (res.data?.data?.items || []).map((it) => ({
+      ...it, displayName: it.displayName || `游客${String(it.id % 10000).padStart(4, "0")}`,
+    }));
+  } catch {
+    if (generation === requestGeneration) reviewsError.value = true;
+  } finally {
+    if (generation === requestGeneration) reviewsLoading.value = false;
+  }
+}
+
+function retryReviews() {
+  if (detail.value) void loadReviews(detail.value.id, requestGeneration, pageRequest?.signal);
 }
 
 async function submitReview() {
@@ -387,6 +397,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  requestGeneration++;
+  pageRequest?.abort();
   detachDetailMedia();
   lightboxSrc.value = "";
   if (typeof document !== "undefined") {
@@ -397,6 +409,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.pd__skeleton { padding-top: 20px; }
+.pd__skeletonTitle, .pd__skeletonLine, .pd__skeletonMedia { background: #e2e8f0; border-radius: 8px; margin-bottom: 16px; }
+.pd__skeletonTitle { height: 26px; width: 65%; }
+.pd__skeletonLine { height: 18px; width: 40%; }
+.pd__skeletonMedia { aspect-ratio: 4 / 3; }
+.pd__retry, .pd__html :deep(.detail-image__retry) {
+  border: 1px solid #94a3b8; border-radius: 8px; background: #f8fafc; color: #075985;
+  padding: 10px 14px; min-height: 44px; cursor: pointer; font: inherit;
+}
+.pd__empty .pd__retry { display: block; margin: 14px auto 0; }
+.pd__html :deep(.detail-video) { margin: 12px 0; max-width: 100%; }
+.pd__html :deep(.detail-video video) { display: block; width: 100%; height: auto; min-height: 160px; object-fit: contain; }
+.pd__html :deep(.detail-video__toolbar) { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 0; }
+.pd__html :deep(.detail-video__play), .pd__html :deep(.detail-video__quality) {
+  border: 1px solid #94a3b8; border-radius: 8px; padding: 8px 14px; min-height: 44px;
+  font: inherit; font-size: 14px; background: #f8fafc; color: #0c4a6e; cursor: pointer;
+}
+.pd__html :deep(.detail-video__play:disabled) { cursor: wait; }
+.pd__html :deep(.detail-video__status) { font-size: 13px; color: #475569; }
+.pd__retry:focus-visible, .pd__html :deep(button:focus-visible), .pd__html :deep(select:focus-visible) {
+  outline: 2px solid #0369a1; outline-offset: 3px;
+}
 .pd {
   position: relative;
   min-height: 100vh;

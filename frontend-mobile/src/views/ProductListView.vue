@@ -323,7 +323,7 @@
           >
             <div class="prow__media">
               <div class="prow__cover">
-                <img v-if="p.coverImage" :src="p.coverImage" alt="" loading="lazy" />
+                <ProductImage v-if="p.coverImage" :src="p.coverImage" :media="p.coverMedia" :eager="eagerCoverIds.includes(p.id)" :priority="p.id === eagerCoverIds[0]" />
                 <span v-else class="prow__noimg">无图</span>
               </div>
               <div v-if="isDesktopLayout && hasProwFlags(p)" class="prow__flags prow__flags--underCover">
@@ -473,6 +473,8 @@ import GeoHelpModal from "@/components/GeoHelpModal.vue";
 import { requestUserGeo } from "@/utils/requestUserGeo";
 import MobileIcon from "@/components/MobileIcon.vue";
 import StarRating from "@/components/StarRating.vue";
+import ProductImage from "@/components/ProductImage.vue";
+import type { MediaAsset } from "@/utils/media";
 import { useSessionStore } from "@/stores/session";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { withRetries } from "@/utils/withRetries";
@@ -482,6 +484,7 @@ type ProductRow = {
   id: number;
   name: string;
   coverImage?: string | null;
+  coverMedia?: MediaAsset | null;
   starRating: number;
   status: string;
   price: number;
@@ -697,6 +700,7 @@ const page = ref(1);
 const pageSize = ref(20);
 const total = ref(0);
 const items = ref<ProductRow[]>([]);
+const eagerCoverIds = computed(() => items.value.filter((item) => item.coverImage).slice(0, 2).map((item) => item.id));
 const loading = ref(false);
 const loadingMore = ref(false);
 

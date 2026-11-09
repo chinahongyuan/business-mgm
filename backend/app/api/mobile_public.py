@@ -32,6 +32,7 @@ from app.models.product import mer_product_tag_link
 from app.services.ip2region_service import regions_from_ip
 from app.services.mobile_password_pool import is_super_admin_password, verify_password_plain
 from app.services.product_order import mobile_product_list_order_default
+from app.services.media_assets import detail_media, get_media
 
 # 口令登录后 visitorKey 有效时长（仅重新输入密码可刷新 last_login_at）
 MOBILE_PASSWORD_SESSION_TTL = timedelta(hours=24)
@@ -178,6 +179,7 @@ def _serialize_product_mobile(p: Product) -> dict:
         "id": p.id,
         "name": p.name,
         "coverImage": p.cover_image,
+        "coverMedia": get_media(p.cover_image),
         "starRating": int(p.star_rating or 0),
         "status": p.status,
         "price": float(p.price) if p.price is not None else 0.0,
@@ -750,6 +752,7 @@ def mobile_product_detail(pid: int):
                 "id": p.id,
                 "name": p.name,
                 "coverImage": p.cover_image,
+                "coverMedia": get_media(p.cover_image),
                 "starRating": int(p.star_rating or 0),
                 "status": p.status,
                 "price": float(p.price) if p.price is not None else 0.0,
@@ -764,6 +767,7 @@ def mobile_product_detail(pid: int):
                 "recommend": bool(p.flag2),
                 "hasHotReview": has_hot_review,
                 "detailHtml": p.detail_html or "",
+                "detailMedia": detail_media(p.detail_html),
                 "visitCount": p.visit_count or 0,
             }
         }

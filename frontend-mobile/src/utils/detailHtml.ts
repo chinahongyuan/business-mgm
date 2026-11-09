@@ -1,16 +1,4 @@
-/**
- * 详情富文本预处理。
- * 给所有 video 标签添加 playsinline 属性，确保在移动端 WebView 内联播放。
- */
-export function enhanceDetailHtml(html: string): string {
-  if (!html) return "";
-  return html.replace(/<video(\s+[^>]*)?>/gi, (match, attrs = "") => {
-    if (attrs.toLowerCase().includes("playsinline")) {
-      return match;
-    }
-    return `<video${attrs} playsinline>`;
-  });
-}
+export { prepareDetailMedia as enhanceDetailHtml } from "./detailMedia";
 
 /**
  * 详情区内多个 video：同一时间仅允许一个播放。
@@ -142,11 +130,11 @@ export function attachExclusiveVideoPlayback(root: HTMLElement | null): () => vo
 export function attachDetailImageClicks(root: HTMLElement, onOpen: (imageUrl: string) => void): () => void {
   const handler = (e: MouseEvent) => {
     const el = e.target;
-    if (!el || el.nodeName !== "IMG") {
+    if (!(el instanceof HTMLImageElement)) {
       return;
     }
     const img = el as HTMLImageElement;
-    const src = img.currentSrc || img.src;
+    const src = img.dataset.original || img.currentSrc || img.src;
     if (!src) {
       return;
     }

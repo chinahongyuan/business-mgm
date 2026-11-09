@@ -182,16 +182,26 @@ def create_app(config_name: str | None = None) -> Flask:
 
 def _register_upload_routes(app: Flask) -> None:
     """Serve uploaded files from uploads_dir() (dev: app/static/uploads; frozen: data/uploads)."""
-    from flask import make_response, request
+    from flask import abort, make_response, request
+    from app.services.media_assets import immutable_upload, public_upload_path, recover_pending
 
     base = uploads_dir()
+    recover_pending(base)
 
     @app.route("/uploads/<path:rel_path>", methods=["GET", "OPTIONS"])
     def serve_upload(rel_path: str):
         if request.method == "OPTIONS":
             response = make_response("", 204)
         else:
-            response = make_response(send_from_directory(base, rel_path))
+            if public_upload_path(rel_path, base) is None:
+                abort(404)
+            immutable = immutable_upload(rel_path)
+            response = make_response(send_from_directory(base, rel_path, conditional=True,
+                                                        max_age=31536000 if immutable else 0))
+            response.headers["Cache-Control"] = (
+                "public, max-age=31536000, immutable" if immutable
+                else "no-cache, max-age=0, must-revalidate"
+            )
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
         return response

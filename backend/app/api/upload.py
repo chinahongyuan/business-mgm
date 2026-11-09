@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 from app.api import bp
 from app.auth_utils import require_auth
 from app.runtime_paths import uploads_dir
+from app.services.media_assets import enqueue_media
 
 
 def _upload_dir() -> str:
@@ -68,4 +69,6 @@ def upload_file():
     path = os.path.join(dest_dir, new_name)
     f.save(path)
     url = f"/uploads/{quote(rel_dir, safe='')}/{new_name}"
-    return jsonify({"data": {"url": url, "name": new_name}})
+    result = enqueue_media(path, _upload_dir())
+    return jsonify({"data": {"url": url, "name": new_name,
+                             "media": result.get("media"), "mediaStatus": result["status"]}})
